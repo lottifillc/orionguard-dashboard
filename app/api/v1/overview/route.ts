@@ -1,69 +1,77 @@
+import {
+  getOverviewMetrics,
+  getEmployeeProductivity,
+  getWeeklyProductivityTrend,
+  getDeviceStatus,
+  getRecentActivity,
+} from '@/src/lib/analytics/overview.service'
 import { prisma } from '@/lib/prisma'
 
-function getTodayRange(): { start: Date; end: Date } {
-  const end = new Date()
-  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0)
+function getDateRangeFromQuery(
+  startStr?: string | null,
+  endStr?: string | null
+): { start: Date; end: Date } {
+  const end = endStr ? new Date(endStr) : new Date()
+  const start = startStr ? new Date(startStr) : new Date(end)
+  if (!startStr) {
+    start.setDate(start.getDate() - 6)
+  }
+  start.setHours(0, 0, 0, 0)
+  end.setHours(23, 59, 59, 999)
   return { start, end }
 }
 
-export async function GET() {
-  const { start: startOfToday, end: endOfToday } = getTodayRange()
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  let companyId = searchParams.get('companyId')
+  const startStr = searchParams.get('start')
+  const endStr = searchParams.get('end')
 
-  const [
-    employees,
-    devices,
-    activeSessions,
-    todaySessions,
-    screenshotsToday,
-  ] = await Promise.all([
-    prisma.employee.count(),
-    prisma.device.count(),
-    prisma.session.count({ where: { logoutTime: null } }),
-    prisma.session.findMany({
-      where: {
-        loginTime: {
-          gte: startOfToday,
-          lte: endOfToday,
-        },
+  if (!companyId) {
+    const first = await prisma.company.findFirst({ select: { id: true } })
+    companyId = first?.id ?? ''
+  }
+
+  if (!companyId) {
+    return Response.json({
+      metrics: {
+        totalEmployees: 0,
+        totalDevices: 0,
+        onlineDevices: 0,
+        totalSessions: 0,
+        activeMinutes: 0,
+        idleMinutes: 0,
+        productivityPercentage: 0,
       },
-      select: {
-        totalActiveSeconds: true,
-        totalIdleSeconds: true,
-      },
-    }),
-    prisma.screenshot.count({
-      where: {
-        capturedAt: {
-          gte: startOfToday,
-          lte: endOfToday,
-        },
-      },
-    }),
+      employees: [],
+      weeklyTrend: [],
+      devices: [],
+      activities: [],
+      companies: [],
+    })
+  }
+
+  const dateRange = getDateRangeFromQuery(startStr, endStr)
+
+  const companies = await prisma.company.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  })
+
+  const [metrics, employees, weeklyTrend, devices, activities] = await Promise.all([
+    getOverviewMetrics(companyId, dateRange),
+    getEmployeeProductivity(companyId, dateRange),
+    getWeeklyProductivityTrend(companyId),
+    getDeviceStatus(companyId),
+    getRecentActivity(companyId),
   ])
 
-  const totalActiveSecondsToday = todaySessions.reduce(
-    (acc, s) => acc + s.totalActiveSeconds,
-    0
-  )
-
-  const totalIdleSecondsToday = todaySessions.reduce(
-    (acc, s) => acc + s.totalIdleSeconds,
-    0
-  )
-
-  const totalSeconds = totalActiveSecondsToday + totalIdleSecondsToday
-  const productivity =
-    totalSeconds === 0
-      ? 0
-      : Math.round((totalActiveSecondsToday / totalSeconds) * 100)
-
   return Response.json({
+    metrics,
     employees,
+    weeklyTrend,
     devices,
-    activeSessions,
-    totalActiveSecondsToday,
-    totalIdleSecondsToday,
-    productivity,
-    screenshotsToday,
+    activities,
+    companies,
   })
 }

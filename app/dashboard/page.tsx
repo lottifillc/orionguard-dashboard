@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, MonitorSmartphone, Activity, 
   Image as ImageIcon, Bell, Settings, Search, ChevronDown, 
@@ -8,29 +8,22 @@ import {
   Clock, Server, BrainCircuit, ActivitySquare
 } from 'lucide-react';
 
-// --- ARABIC MOCK DATA ---
-const kpiData = [
-  { title: "الموظفون النشطون", value: "1,284", trend: "+4.2%", isPositive: true, icon: Users, color: "text-blue-400" },
-  { title: "الأجهزة المتصلة", value: "1,150", trend: "-1.1%", isPositive: false, icon: MonitorSmartphone, color: "text-indigo-400" },
-  { title: "متوسط الإنتاجية", value: "87.4%", trend: "+2.4%", isPositive: true, icon: Activity, color: "text-emerald-400" },
-  { title: "معدل الخمول", value: "12.6%", trend: "-0.8%", isPositive: true, icon: Clock, color: "text-amber-400" },
-  { title: "درجة المخاطر", value: "14/100", trend: "-5.0%", isPositive: true, icon: ShieldAlert, color: "text-rose-400" },
-  { title: "إجمالي ساعات العمل", value: "8,420س", trend: "+12.5%", isPositive: true, icon: Zap, color: "text-blue-500" },
-];
-
-const insights = [
-  { id: 1, text: "تنخفض الإنتاجية بنسبة 18٪ باستمرار بعد الساعة 2:00 مساءً في قسم الهندسة.", severity: "warning" },
-  { id: 2, text: "تم اكتشاف معدل خمول مرتفع (22٪) في قسم المبيعات عن بُعد اليوم.", severity: "alert" },
-  { id: 3, text: "انخفضت درجة المخاطر الإجمالية للنظام بعد تطبيق سياسة البرامج الجديدة.", severity: "success" }
-];
-
-const activities = [
-  { id: 1, user: "أحمد م.", action: "بدأ جلسة آمنة", time: "الآن", status: "success" },
-  { id: 2, user: "الجهاز #8842", action: "انقطع الاتصال بشكل غير متوقع", time: "منذ دقيقتين", status: "error" },
-  { id: 3, user: "سارة ج.", action: "تسببت في تنبيه خمول مطول", time: "منذ 15 دقيقة", status: "warning" },
-  { id: 4, user: "النظام", action: "تم إنشاء التقرير اليومي التلقائي", time: "منذ ساعة", status: "info" },
-  { id: 5, user: "ديفيد ك.", action: "تم تسجيل الدخول من عنوان IP جديد", time: "منذ ساعتين", status: "warning" },
-];
+type OverviewData = {
+  metrics: {
+    totalEmployees: number
+    totalDevices: number
+    onlineDevices: number
+    totalSessions: number
+    activeMinutes: number
+    idleMinutes: number
+    productivityPercentage: number
+  }
+  employees: { fullName: string; productivityPercentage: number; riskScore: string }[]
+  weeklyTrend: { date: string; totalActiveMinutes: number; totalIdleMinutes: number; productivityPercentage: number }[]
+  devices: { deviceName: string; isOnline: boolean; lastSeenAt: string | null; totalSessions: number; totalActiveMinutes: number }[]
+  activities: { id: string; user: string; action: string; time: string; status: string }[]
+  companies: { id: string; name: string }[]
+}
 
 // --- COMPONENTS ---
 
@@ -51,8 +44,8 @@ const SidebarItem = ({ icon: Icon, label, active }: { icon: React.ComponentType<
 type KPIDataItem = {
   title: string
   value: string
-  trend: string
-  isPositive: boolean
+  trend?: string
+  isPositive?: boolean
   icon: React.ComponentType<{ size?: number }>
   color: string
 }
@@ -66,11 +59,13 @@ const KPICard = ({ data }: { data: KPIDataItem }) => (
         <div className={`p-3 rounded-lg bg-white/5 border border-white/10 ${data.color}`}>
           <data.icon size={22} />
         </div>
-        <div className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border 
-          ${data.isPositive ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 'text-rose-400 bg-rose-400/10 border-rose-400/20'}`}>
-          {data.isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-          <span dir="ltr">{data.trend}</span>
-        </div>
+        {data.trend != null && (
+          <div className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border 
+            ${(data.isPositive ?? true) ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 'text-rose-400 bg-rose-400/10 border-rose-400/20'}`}>
+            {(data.isPositive ?? true) ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            <span dir="ltr">{data.trend}</span>
+          </div>
+        )}
       </div>
       
       <div>
@@ -85,54 +80,184 @@ const KPICard = ({ data }: { data: KPIDataItem }) => (
   </div>
 );
 
-// --- MOCK CHARTS ---
-// Preserved exact visualizations
-const AreaChart = () => (
-  <div className="h-full w-full flex flex-col justify-end relative" dir="ltr">
-    <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-      <defs>
-        <linearGradient id="blueGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#0066FF" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#0066FF" stopOpacity="0.0" />
-        </linearGradient>
-      </defs>
-      <path d="M0,100 L0,60 C20,50 30,80 50,60 C70,40 80,30 100,20 L100,100 Z" fill="url(#blueGradient)" />
-      <path d="M0,60 C20,50 30,80 50,60 C70,40 80,30 100,20" fill="none" stroke="#0066FF" strokeWidth="2" strokeLinecap="round" className="drop-shadow-[0_0_8px_rgba(0,102,255,0.8)]" />
-      <circle cx="50" cy="60" r="3" fill="#fff" stroke="#0066FF" strokeWidth="1.5" className="animate-pulse" />
-      <circle cx="100" cy="20" r="3" fill="#fff" stroke="#0066FF" strokeWidth="1.5" />
-    </svg>
-    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
-      <div className="border-b border-white w-full h-1/4"></div>
-      <div className="border-b border-white w-full h-1/4"></div>
-      <div className="border-b border-white w-full h-1/4"></div>
-      <div className="w-full h-1/4"></div>
-    </div>
-  </div>
-);
+const ARABIC_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
-const BarChart = () => {
-  const bars = [40, 70, 45, 90, 65, 80, 55];
+const AreaChart = ({ data, dates, loading }: { data: number[]; dates?: string[]; loading?: boolean }) => {
+  const hasData = data.length > 0 && data.some((v) => v > 0)
+  const values = data.length >= 7 ? data : [...data, ...Array(7 - data.length).fill(0)]
+  const max = Math.max(...values, 1)
+  const points = values.map((v, i) => {
+    const x = (i / 6) * 100
+    const y = 92 - (v / max) * 82
+    return { x, y }
+  })
+  const areaPath = `M0,92 L${points.map((p) => `${p.x},${p.y}`).join(' L')} L100,92 Z`
+  const linePath = `M${points.map((p) => `${p.x},${p.y}`).join(' L')}`
+
+  const dayLabels = Array.from({ length: 7 }, (_, i) => {
+    if (dates?.[i]) {
+      const d = new Date(dates[i])
+      return ARABIC_DAYS[d.getDay()]
+    }
+    return ARABIC_DAYS[i]
+  })
+
+  if (loading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center min-h-[200px]" dir="ltr">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!hasData) {
+    return (
+      <div className="h-full w-full flex items-center justify-center min-h-[200px] text-slate-500 text-sm" dir="ltr">
+        <span>لا توجد بيانات متاحة لهذه الفترة</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full w-full max-h-[200px] flex flex-col min-h-0" dir="ltr">
+      <svg className="w-full flex-1 min-h-0" preserveAspectRatio="none" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="blueGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#0066FF" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#0066FF" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#blueGradient)" />
+        <path d={linePath} fill="none" stroke="#0066FF" strokeWidth="0.4" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="0.6" fill="#fff" stroke="#0066FF" strokeWidth="0.2" className={i === 6 ? 'animate-pulse' : ''} />
+        ))}
+      </svg>
+      <div className="grid grid-cols-7 w-full mt-2 text-xs text-slate-500 shrink-0 gap-0">
+        {dayLabels.map((label, i) => (
+          <span key={i} className="text-center truncate px-0.5">
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const BarChart = ({ data, loading }: { data: number[]; loading?: boolean }) => {
+  const hasData = data.length > 0 && data.some((v) => v > 0)
+  const bars = data.length >= 7 ? data.slice(0, 7) : [...data, ...Array(7 - data.length).fill(0)]
+  const max = Math.max(...bars, 1)
+
+  if (loading) {
+    return (
+      <div className="h-full min-h-[200px] flex items-center justify-center" dir="ltr">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!hasData) {
+    return (
+      <div className="h-full min-h-[200px] flex items-center justify-center text-slate-500 text-sm" dir="ltr">
+        <span>لا توجد بيانات متاحة لهذه الفترة</span>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full flex items-end justify-between gap-2 pt-4" dir="ltr">
-      {bars.map((height, i) => (
-        <div key={i} className="w-full flex flex-col justify-end group">
-          <div 
-            style={{ height: `${height}%` }} 
-            className="w-full bg-slate-800 rounded-t-sm relative transition-all duration-300 group-hover:bg-slate-700 overflow-hidden"
-          >
+      {bars.map((val, i) => {
+        const height = Math.round((val / max) * 100)
+        return (
+          <div key={i} className="w-full flex flex-col justify-end group">
             <div 
-              style={{ height: `${height * 0.8}%` }} 
-              className="absolute bottom-0 w-full bg-linear-to-t from-[#0044CC] to-[#00AAFF] shadow-[0_0_10px_rgba(0,102,255,0.5)] rounded-t-sm"
-            />
+              style={{ height: `${height}%` }} 
+              className="w-full bg-slate-800 rounded-t-sm relative transition-all duration-300 group-hover:bg-slate-700 overflow-hidden"
+            >
+              <div 
+                style={{ height: `${height * 0.8}%` }} 
+                className="absolute bottom-0 w-full bg-linear-to-t from-[#0044CC] to-[#00AAFF] shadow-[0_0_10px_rgba(0,102,255,0.5)] rounded-t-sm"
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
-  );
-};
+  )
+}
 
 // --- MAIN LAYOUT ---
 export default function Dashboard() {
+  const [data, setData] = useState<OverviewData | null>(null)
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (companyId) params.set('companyId', companyId)
+    if (dateRange?.start) params.set('start', dateRange.start)
+    if (dateRange?.end) params.set('end', dateRange.end)
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/overview?${params}`
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error('Fetch failed')
+        return r.json()
+      })
+      .then((d) => {
+        setData(d)
+        if (d?.companies?.length && !companyId) {
+          setCompanyId(d.companies[0].id)
+        }
+      })
+      .catch(() => setData(null))
+      .finally(() => setLoading(false))
+  }, [companyId, dateRange])
+
+  const m = data?.metrics ?? {
+    totalEmployees: 0,
+    totalDevices: 0,
+    onlineDevices: 0,
+    totalSessions: 0,
+    activeMinutes: 0,
+    idleMinutes: 0,
+    productivityPercentage: 0,
+  }
+
+  const idlePct = m.totalSessions === 0 ? 0 : Math.round(100 - m.productivityPercentage)
+  const highRiskCount = data?.employees?.filter((e) => e.riskScore === 'HIGH').length ?? 0
+
+  const kpiData: KPIDataItem[] = [
+    { title: 'الموظفون النشطون', value: m.totalEmployees.toLocaleString('ar'), icon: Users, color: 'text-blue-400' },
+    { title: 'الأجهزة المتصلة', value: `${m.onlineDevices}/${m.totalDevices}`, icon: MonitorSmartphone, color: 'text-indigo-400' },
+    { title: 'متوسط الإنتاجية', value: `${m.productivityPercentage}%`, icon: Activity, color: 'text-emerald-400' },
+    { title: 'معدل الخمول', value: `${idlePct}%`, icon: Clock, color: 'text-amber-400' },
+    { title: 'درجة المخاطر', value: `${highRiskCount}`, icon: ShieldAlert, color: 'text-rose-400' },
+    { title: 'إجمالي ساعات العمل', value: `${Math.round(m.activeMinutes / 60)}س`, icon: Zap, color: 'text-blue-500' },
+  ]
+
+  const insights: { id: number; text: string; severity: 'warning' | 'alert' | 'success' }[] = (data?.employees ?? [])
+    .filter((e) => e.riskScore === 'HIGH')
+    .slice(0, 3)
+    .map((e, i) => ({
+      id: i + 1,
+      text: `إنتاجية منخفضة: ${e.fullName} (${e.productivityPercentage}%)`,
+      severity: 'alert' as const,
+    }))
+  if (insights.length === 0 && data?.employees?.length) {
+    insights.push({
+      id: 0,
+      text: 'مستوى الإنتاجية ضمن المعدل الطبيعي',
+      severity: 'success',
+    })
+  }
+
+  const weeklyProductivity = data?.weeklyTrend?.map((d) => d.productivityPercentage) ?? []
+  const weeklyDates = data?.weeklyTrend?.map((d) => d.date) ?? []
+  const activities = data?.activities ?? []
+
   return (
     <div className="h-screen w-full bg-[#050811] text-white flex overflow-hidden font-sans">
       {/* Background Grid Overlay */}
@@ -194,12 +319,25 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold text-white tracking-wide">نظرة عامة على المؤسسة</h2>
             <div className="h-6 w-px bg-white/10" />
             
-            <button className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
-              <Server size={16} className="text-blue-500" />
-              <span>شركة جلوبال تك</span>
-              {/* Converted ml-1 to ms-1 */}
-              <ChevronDown size={14} className="ms-1 text-slate-500" />
-            </button>
+            <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
+              <Server size={16} className="text-blue-500 shrink-0" />
+              <select
+                value={companyId ?? ''}
+                onChange={(e) => setCompanyId(e.target.value || null)}
+                className="bg-transparent border-none text-inherit focus:outline-none focus:ring-0 cursor-pointer min-w-0"
+              >
+                {(data?.companies ?? []).length === 0 ? (
+                  <option value="" className="bg-[#0B101E] text-white">لا توجد شركات</option>
+                ) : (
+                  (data?.companies ?? []).map((c) => (
+                    <option key={c.id} value={c.id} className="bg-[#0B101E] text-white">
+                      {c.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <ChevronDown size={14} className="ms-1 text-slate-500 shrink-0 pointer-events-none" />
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -214,10 +352,23 @@ export default function Dashboard() {
               />
             </div>
 
-            <button className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
-              <Calendar size={16} className="text-slate-400" />
-              <span>اليوم، 24 أكتوبر</span>
-            </button>
+            <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
+              <Calendar size={16} className="text-slate-400 shrink-0" />
+              <input
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => {
+                  const d = e.target.value
+                  if (d) {
+                    const end = new Date(d)
+                    const start = new Date(d)
+                    start.setDate(start.getDate() - 6)
+                    setDateRange({ start: start.toISOString().slice(0, 10), end: d })
+                  }
+                }}
+                className="bg-transparent border-none text-inherit focus:outline-none focus:ring-0 [color-scheme:dark] max-w-[140px]"
+              />
+            </div>
 
             <button className="relative p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition">
               <Bell size={20} />
@@ -240,10 +391,9 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              <div className="lg:col-span-2 rounded-2xl bg-[#0B101E] border border-white/5 p-6 relative overflow-hidden flex flex-col">
-                {/* Converted right-0 translate-x-1/2 to end-0 rtl:-translate-x-1/2 */}
+              <div className="lg:col-span-2 h-[350px] w-full rounded-2xl bg-[#0B101E] border border-white/5 p-6 relative overflow-hidden flex flex-col shrink-0">
                 <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none" />
-                <div className="flex justify-between items-center mb-6 z-10">
+                <div className="flex justify-between items-center mb-4 z-10 shrink-0">
                   <div>
                     <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
                     <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
@@ -256,8 +406,8 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
-                <div className="flex-1 min-h-[160px] relative z-10">
-                  <AreaChart />
+                <div className="mt-auto w-full max-h-[200px] relative z-10 shrink-0 flex flex-col min-h-0">
+                  <AreaChart data={weeklyProductivity} dates={weeklyDates} loading={loading} />
                 </div>
               </div>
 
@@ -304,7 +454,7 @@ export default function Dashboard() {
                   </button>
                 </div>
                 <div className="flex-1 min-h-[200px]">
-                  <BarChart />
+                  <BarChart data={weeklyProductivity} loading={loading} />
                 </div>
                 <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/5 text-xs text-slate-400">
                   <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> نشط</div>
