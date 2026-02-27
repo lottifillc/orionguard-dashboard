@@ -224,6 +224,7 @@ async function main() {
 
         const session = await prisma.session.create({
           data: {
+            companyId: device.companyId,
             employeeId: emp.id,
             deviceId: device.id,
             loginTime,
@@ -252,6 +253,7 @@ async function main() {
   const oldDevice = allDevices.find((d) => d.companyId === oldEmp.companyId)!;
   const oldSession = await prisma.session.create({
     data: {
+      companyId: oldDevice.companyId,
       employeeId: oldEmp.id,
       deviceId: oldDevice.id,
       loginTime: addDays(baseDate, -30),
@@ -276,6 +278,7 @@ async function main() {
   const overlapDay = addDays(baseDate, 5);
   const overlap1 = await prisma.session.create({
     data: {
+      companyId: overlapDevice.companyId,
       employeeId: overlapEmp.id,
       deviceId: overlapDevice.id,
       loginTime: setTime(overlapDay, 8, 0),
@@ -287,6 +290,7 @@ async function main() {
   });
   const overlap2 = await prisma.session.create({
     data: {
+      companyId: overlapDevice.companyId,
       employeeId: overlapEmp.id,
       deviceId: overlapDevice.id,
       loginTime: setTime(overlapDay, 11, 30),
