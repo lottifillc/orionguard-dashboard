@@ -7,7 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============ Enums ============
+enum Role {
+  EMPLOYEE
+  SUPERVISOR
+  ADMIN
+}
+
 enum LoginReason {
   NORMAL
   SUPERVISOR
@@ -15,13 +20,32 @@ enum LoginReason {
 }
 
 model Company {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
+  employees  Employee[]
+  devices    Device[]
+  branches   Branch[]
+  workShifts WorkShift[]
+  sessions   Session[]
+  auditLogs  AuditLog[]
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  location  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company   Company    @relation(fields: [companyId], references: [id])
   employees Employee[]
   devices   Device[]
-  workShifts WorkShift[]
+
+  @@index([companyId])
+  @@index([companyId, name])
 }
 
 model Employee {
@@ -30,42 +54,49 @@ model Employee {
   employeeCode String
   fullName     String
   password     String
+  role         Role     @default(EMPLOYEE)
+  branchId     String?
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  company              Company                   @relation(fields: [companyId], references: [id])
-  sessions             Session[]
-  shiftAssignments     EmployeeShiftAssignment[]
-  deviceLoginEvents    DeviceLoginEvent[]
-  dailyStats           EmployeeDailyStats[]
+  company               Company                   @relation(fields: [companyId], references: [id])
+  branch                Branch?                   @relation(fields: [branchId], references: [id])
+  sessions              Session[]
+  shiftAssignments      EmployeeShiftAssignment[]
+  deviceLoginEvents     DeviceLoginEvent[]
+  dailyStats            EmployeeDailyStats[]
+  behavioralFingerprint BehavioralFingerprint?
 
   @@unique([companyId, employeeCode])
+  @@index([companyId])
+  @@index([companyId, role])
+  @@index([branchId])
 }
 
-// ============ WorkShift: الشيفت المجدول (وليس الجلسة الفعلية) ============
 model WorkShift {
   id        String   @id @default(cuid())
   companyId String
-  name      String   // Morning / Evening / Night
-  startTime String   // "08:00"
-  endTime   String   // "16:00"
+  name      String
+  startTime String
+  endTime   String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  company   Company                   @relation(fields: [companyId], references: [id])
+  company     Company                   @relation(fields: [companyId], references: [id])
   assignments EmployeeShiftAssignment[]
 
   @@index([companyId])
+  @@index([companyId, name])
 }
 
-// ============ EmployeeShiftAssignment: ربط الموظف بالشيفت ============
 model EmployeeShiftAssignment {
-  id          String    @id @default(cuid())
-  employeeId  String
-  shiftId     String
+  id           String    @id @default(cuid())
+  employeeId   String
+  shiftId      String
   assignedFrom DateTime
-  assignedTo   DateTime? // nullable = لا يزال معينًا
+  assignedTo   DateTime?
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee Employee  @relation(fields: [employeeId], references: [id])
   shift    WorkShift @relation(fields: [shiftId], references: [id])
 
   @@index([employeeId])
@@ -74,69 +105,66 @@ model EmployeeShiftAssignment {
 }
 
 model Device {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   companyId        String
-  deviceIdentifier String   @unique
+  branchId         String?
+  deviceIdentifier String    @unique
   deviceName       String
-  createdAt        DateTime @default(now())
-  isOnline         Boolean  @default(false)
+  createdAt        DateTime  @default(now())
+  isOnline         Boolean   @default(false)
   lastSeenAt       DateTime?
 
-  company          Company           @relation(fields: [companyId], references: [id])
-  sessions         Session[]
+  company           Company            @relation(fields: [companyId], references: [id])
+  branch            Branch?            @relation(fields: [branchId], references: [id])
+  sessions          Session[]
   deviceLoginEvents DeviceLoginEvent[]
 
   @@index([companyId])
+  @@index([branchId])
 }
 
-// ============ Session: Device Session فقط (من boot إلى shutdown) ============
-// تمثل تشغيل الجهاز - لا ترتبط بموظف واحد فقط (الربط عبر DeviceLoginEvent)
 model Session {
   id                 String    @id @default(cuid())
-  employeeId         String?   // optional: null = نظام يعمل بدون موظف مسجل
+  companyId          String
   deviceId           String
+  employeeId         String?
   loginTime          DateTime  @default(now())
   logoutTime         DateTime?
   totalActiveSeconds Int       @default(0)
   totalIdleSeconds   Int       @default(0)
   status             String    @default("ACTIVE")
+  deviceBootAt       DateTime?
+  deviceShutdownAt   DateTime?
+  isSystemSession    Boolean   @default(false)
 
-  // Device Session fields
-  deviceBootAt     DateTime?  // وقت تشغيل الجهاز
-  deviceShutdownAt DateTime?  // وقت إيقاف الجهاز
-  isSystemSession  Boolean    @default(false) // true = الجهاز يعمل بدون موظف
-
-  employee    Employee?          @relation(fields: [employeeId], references: [id])
-  device      Device            @relation(fields: [deviceId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  employee    Employee?    @relation(fields: [employeeId], references: [id])
+  device      Device       @relation(fields: [deviceId], references: [id])
   activities  Activity[]
   idleLogs    IdleLog[]
   screenshots Screenshot[]
-  deviceLoginEvents DeviceLoginEvent[]
 
   @@index([deviceId])
   @@index([deviceId, loginTime])
+  @@index([companyId])
+  @@index([loginTime])
 }
 
-// ============ DeviceLoginEvent: تسجيل دخول/خروج الموظف على الجهاز ============
-// يسمح بـ: تبديل موظفين، معرفة من كان على الجهاز، حساب زمن كل موظف بدقة
-// لا تداخل: لا يسمح بتداخل LoginEvent لنفس الجهاز
 model DeviceLoginEvent {
-  id         String     @id @default(cuid())
+  id         String      @id @default(cuid())
   deviceId   String
   employeeId String
-  sessionId  String     // الجلسة (Device Session) التي حدث فيها الدخول
   loginAt    DateTime
   logoutAt   DateTime?
-  reason     LoginReason @default(NORMAL) // NORMAL | SUPERVISOR | ADMIN_OVERRIDE
-  createdAt  DateTime   @default(now())
+  reason     LoginReason @default(NORMAL)
+  createdAt  DateTime    @default(now())
 
-  device  Device  @relation(fields: [deviceId], references: [id])
+  device   Device   @relation(fields: [deviceId], references: [id])
   employee Employee @relation(fields: [employeeId], references: [id])
-  session Session @relation(fields: [sessionId], references: [id])
 
   @@index([deviceId, loginAt])
   @@index([employeeId, loginAt])
-  @@index([sessionId])
+  @@index([loginAt])
 }
 
 model Activity {
@@ -151,6 +179,9 @@ model Activity {
   durationSeconds Int
 
   session Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([startTime])
 }
 
 model IdleLog {
@@ -161,6 +192,9 @@ model IdleLog {
   durationSeconds Int
 
   session Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([startTime])
 }
 
 model Screenshot {
@@ -170,10 +204,11 @@ model Screenshot {
   capturedAt DateTime @default(now())
 
   session Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([capturedAt])
 }
 
-// ============ EmployeeDailyStats: Snapshot للمقاييس اليومية ============
-// يستخدم للـ Dashboard بدل حساب مباشر ثقيل
 model EmployeeDailyStats {
   id                  String   @id @default(cuid())
   employeeId          String
@@ -181,15 +216,52 @@ model EmployeeDailyStats {
   totalWorkSeconds    Int      @default(0)
   totalActiveSeconds  Int      @default(0)
   totalIdleSeconds    Int      @default(0)
-  shiftSeconds        Int      @default(0)      // وقت داخل الشيفت
-  outsideShiftSeconds Int      @default(0)      // وقت خارج الشيفت
-  riskScore           Float?
+  shiftSeconds        Int      @default(0)
+  outsideShiftSeconds Int      @default(0)
   productivityScore   Float?
+  riskScore           Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
-  @@index([employeeId, date])
+  @@index([riskScore])
+}
+
+model BehavioralFingerprint {
+  id                          String   @id @default(cuid())
+  employeeId                  String   @unique
+  avgSessionLength            Float
+  avgIdleRatio                Float
+  avgProductiveRatio          Float
+  distractionRatio            Float
+  consistencyScore            Float
+  supervisorInterventionCount Int      @default(0)
+  fingerprintScore            Float
+  calculatedAt                DateTime
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([fingerprintScore])
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  companyId       String
+  actorEmployeeId String?
+  action          String
+  entityType      String
+  entityId        String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([createdAt])
+  @@index([companyId, createdAt])
 }
