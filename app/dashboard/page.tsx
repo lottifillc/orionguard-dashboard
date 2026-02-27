@@ -1,3 +1,3 @@
 export default function DashboardPage() {
-  return <div>Dashboard Working</div>
-}
+    return <div style={{color:"white"}}>DASHBOARD WORKING</div>
+  }
