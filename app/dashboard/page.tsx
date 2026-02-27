@@ -245,7 +245,7 @@ export default function Dashboard() {
                 <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none" />
                 <div className="flex justify-between items-center mb-6 z-10">
                   <div>
-                    <h3 className="text-lg font-semibold text-white">اتجاه الإنتاجية</h3>
+                    <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
                     <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
                   </div>
                   <div className="flex gap-2" dir="ltr">
@@ -256,7 +256,7 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
-                <div className="flex-1 min-h-[250px] relative z-10">
+                <div className="flex-1 min-h-[160px] relative z-10">
                   <AreaChart />
                 </div>
               </div>
