@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,57 +8,84 @@ datasource db {
 }
 
 model Company {
-  id        String    @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  createdAt DateTime  @default(now())
+  createdAt DateTime   @default(now())
+
   employees Employee[]
+  devices   Device[]
 }
 
 model Employee {
-  id          String    @id @default(cuid())
-  name        String
-  email       String?
-  company     Company   @relation(fields: [companyId], references: [id])
-  companyId   String
-  sessions    Session[]
-  createdAt   DateTime  @default(now())
+  id           String   @id @default(cuid())
+  companyId    String
+  employeeCode String
+  fullName     String
+  password     String
+  createdAt    DateTime @default(now())
+
+  company  Company @relation(fields: [companyId], references: [id])
+  sessions Session[]
+
+  @@unique([companyId, employeeCode])
+}
+
+model Device {
+  id               String   @id @default(cuid())
+  companyId        String
+  deviceIdentifier String   @unique
+  deviceName       String
+  createdAt        DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  sessions Session[]
 }
 
 model Session {
-  id          String    @id @default(cuid())
-  employee    Employee  @relation(fields: [employeeId], references: [id])
-  employeeId  String
-  startTime   DateTime
-  endTime     DateTime?
+  id                 String   @id @default(cuid())
+  employeeId         String
+  deviceId           String
+  loginTime          DateTime @default(now())
+  logoutTime         DateTime?
+  totalActiveSeconds Int      @default(0)
+  totalIdleSeconds   Int      @default(0)
+
+  employee    Employee     @relation(fields: [employeeId], references: [id])
+  device      Device       @relation(fields: [deviceId], references: [id])
   activities  Activity[]
   idleLogs    IdleLog[]
   screenshots Screenshot[]
-  createdAt   DateTime  @default(now())
 }
 
 model Activity {
-  id         String   @id @default(cuid())
-  session    Session  @relation(fields: [sessionId], references: [id])
-  sessionId  String
-  appName    String
-  title      String
-  duration   Int
-  category   String
-  createdAt  DateTime @default(now())
+  id              String   @id @default(cuid())
+  sessionId       String
+  appName         String
+  windowTitle     String
+  url             String?
+  category        String?
+  startTime       DateTime
+  endTime         DateTime
+  durationSeconds Int
+
+  session Session @relation(fields: [sessionId], references: [id])
 }
 
 model IdleLog {
-  id         String   @id @default(cuid())
-  session    Session  @relation(fields: [sessionId], references: [id])
-  sessionId  String
-  duration   Int
-  createdAt  DateTime @default(now())
+  id              String   @id @default(cuid())
+  sessionId       String
+  startTime       DateTime
+  endTime         DateTime
+  durationSeconds Int
+
+  session Session @relation(fields: [sessionId], references: [id])
 }
 
 model Screenshot {
   id         String   @id @default(cuid())
-  session    Session  @relation(fields: [sessionId], references: [id])
   sessionId  String
-  path       String
-  createdAt  DateTime @default(now())
+  filePath   String
+  capturedAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id])
 }
