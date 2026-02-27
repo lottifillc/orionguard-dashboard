@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  employees Employee[]
+}
+
+model Employee {
+  id          String    @id @default(cuid())
+  name        String
+  email       String?
+  company     Company   @relation(fields: [companyId], references: [id])
+  companyId   String
+  sessions    Session[]
+  createdAt   DateTime  @default(now())
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  employeeId  String
+  startTime   DateTime
+  endTime     DateTime?
+  activities  Activity[]
+  idleLogs    IdleLog[]
+  screenshots Screenshot[]
+  createdAt   DateTime  @default(now())
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  session    Session  @relation(fields: [sessionId], references: [id])
+  sessionId  String
+  appName    String
+  title      String
+  duration   Int
+  category   String
+  createdAt  DateTime @default(now())
+}
+
+model IdleLog {
+  id         String   @id @default(cuid())
+  session    Session  @relation(fields: [sessionId], references: [id])
+  sessionId  String
+  duration   Int
+  createdAt  DateTime @default(now())
+}
+
+model Screenshot {
+  id         String   @id @default(cuid())
+  session    Session  @relation(fields: [sessionId], references: [id])
+  sessionId  String
+  path       String
+  createdAt  DateTime @default(now())
+}
