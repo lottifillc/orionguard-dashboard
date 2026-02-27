@@ -36,6 +36,8 @@ model Device {
   deviceIdentifier String   @unique
   deviceName       String
   createdAt        DateTime @default(now())
+  isOnline   Boolean  @default(false)
+  lastSeenAt DateTime?
 
   company  Company  @relation(fields: [companyId], references: [id])
   sessions Session[]
@@ -49,6 +51,7 @@ model Session {
   logoutTime         DateTime?
   totalActiveSeconds Int      @default(0)
   totalIdleSeconds   Int      @default(0)
+  status             String @default("ACTIVE")
 
   employee    Employee     @relation(fields: [employeeId], references: [id])
   device      Device       @relation(fields: [deviceId], references: [id])

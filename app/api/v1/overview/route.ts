@@ -1,34 +1,69 @@
 import { prisma } from '@/lib/prisma'
 
+function getTodayRange(): { start: Date; end: Date } {
+  const end = new Date()
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0, 0)
+  return { start, end }
+}
+
 export async function GET() {
-  const employees = await prisma.employee.count()
-  const devices = await prisma.device.count()
+  const { start: startOfToday, end: endOfToday } = getTodayRange()
 
-  const sessions = await prisma.session.findMany({
-    select: {
-      totalActiveSeconds: true,
-      totalIdleSeconds: true,
-    },
-  })
+  const [
+    employees,
+    devices,
+    activeSessions,
+    todaySessions,
+    screenshotsToday,
+  ] = await Promise.all([
+    prisma.employee.count(),
+    prisma.device.count(),
+    prisma.session.count({ where: { logoutTime: null } }),
+    prisma.session.findMany({
+      where: {
+        loginTime: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+      select: {
+        totalActiveSeconds: true,
+        totalIdleSeconds: true,
+      },
+    }),
+    prisma.screenshot.count({
+      where: {
+        capturedAt: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+    }),
+  ])
 
-  const totalActive = sessions.reduce(
+  const totalActiveSecondsToday = todaySessions.reduce(
     (acc, s) => acc + s.totalActiveSeconds,
     0
   )
 
-  const totalIdle = sessions.reduce(
+  const totalIdleSecondsToday = todaySessions.reduce(
     (acc, s) => acc + s.totalIdleSeconds,
     0
   )
 
+  const totalSeconds = totalActiveSecondsToday + totalIdleSecondsToday
   const productivity =
-    totalActive + totalIdle === 0
+    totalSeconds === 0
       ? 0
-      : Math.round((totalActive / (totalActive + totalIdle)) * 100)
+      : Math.round((totalActiveSecondsToday / totalSeconds) * 100)
 
   return Response.json({
     employees,
     devices,
+    activeSessions,
+    totalActiveSecondsToday,
+    totalIdleSecondsToday,
     productivity,
+    screenshotsToday,
   })
 }
