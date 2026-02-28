@@ -104,7 +104,7 @@ export async function getEmployeeProductivity(
     _sum: { totalActiveSeconds: true, totalIdleSeconds: true },
   })
 
-  const employeeIds = [...new Set(sessions.map((s) => s.employeeId))]
+  const employeeIds = [...new Set(sessions.map((s) => s.employeeId).filter((id): id is string => id != null))]
   const employees =
     employeeIds.length > 0
       ? await prisma.employee.findMany({
@@ -115,15 +115,17 @@ export async function getEmployeeProductivity(
 
   const empMap = Object.fromEntries(employees.map((e) => [e.id, e.fullName]))
 
-  return sessions.map((s) => {
-    const activeSeconds = s._sum.totalActiveSeconds ?? 0
-    const idleSeconds = s._sum.totalIdleSeconds ?? 0
-    const totalSeconds = activeSeconds + idleSeconds
-    const productivityPercentage =
-      totalSeconds === 0 ? 0 : (activeSeconds / totalSeconds) * 100
+  return sessions
+    .filter((s): s is typeof s & { employeeId: string } => s.employeeId != null)
+    .map((s) => {
+      const activeSeconds = s._sum.totalActiveSeconds ?? 0
+      const idleSeconds = s._sum.totalIdleSeconds ?? 0
+      const totalSeconds = activeSeconds + idleSeconds
+      const productivityPercentage =
+        totalSeconds === 0 ? 0 : (activeSeconds / totalSeconds) * 100
 
-    return {
-      fullName: empMap[s.employeeId] ?? '',
+      return {
+        fullName: empMap[s.employeeId] ?? '',
       totalActiveMinutes: Math.round(activeSeconds / 60),
       totalIdleMinutes: Math.round(idleSeconds / 60),
       productivityPercentage: Math.round(productivityPercentage),
@@ -252,7 +254,7 @@ export async function getRecentActivity(
 
   return sessions.map((s) => ({
     id: s.id,
-    user: s.employee.fullName,
+    user: s.employee?.fullName ?? '',
     action: s.logoutTime
       ? 'أنهى جلسة العمل'
       : 'بدأ جلسة آمنة',

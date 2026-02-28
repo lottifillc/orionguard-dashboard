@@ -269,25 +269,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
     const params = new URLSearchParams()
     if (companyId) params.set('companyId', companyId)
     if (dateRange?.start) params.set('start', dateRange.start)
     if (dateRange?.end) params.set('end', dateRange.end)
     const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/overview?${params}`
-    fetch(url)
-      .then((r) => {
+
+    const fetchData = async (isInitial = false) => {
+      if (isInitial) setLoading(true)
+      try {
+        const r = await fetch(url)
         if (!r.ok) throw new Error('Fetch failed')
-        return r.json()
-      })
-      .then((d) => {
+        const d = await r.json()
         setData(d)
         if (d?.companies?.length && !companyId) {
           setCompanyId(d.companies[0].id)
         }
-      })
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
+      } catch {
+        setData(null)
+      } finally {
+        if (isInitial) setLoading(false)
+      }
+    }
+
+    fetchData(true)
+    const interval = setInterval(() => fetchData(false), 5000)
+
+    return () => clearInterval(interval)
   }, [companyId, dateRange])
 
   const m = data?.metrics ?? {
@@ -450,8 +458,40 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              <div className="lg:col-span-2 max-h-[420px] w-full rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col relative overflow-hidden">
+              {/* Orion AI Insights - top-left */}
+              <div className="order-1 rtl:order-2 rounded-2xl bg-linear-to-b from-[#0B101E] to-[#0A0D18] border border-white/5 p-6 flex flex-col relative overflow-hidden">
+                {/* Converted -right-10 to -end-10 */}
+                <div className="absolute -inset-e-10 -top-10 text-white/5">
+                  <BrainCircuit size={150} />
+                </div>
+                
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                  <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 shadow-[0_0_15px_rgba(0,102,255,0.2)]">
+                    <BrainCircuit size={20} className="text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">رؤى أوريون للذكاء الاصطناعي</h3>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-4 relative z-10">
+                  {insights.map((insight) => (
+                    <div key={insight.id} className="p-4 rounded-xl bg-white/3 border border-white/5 hover:bg-white/5 transition cursor-default">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] shrink-0
+                          ${insight.severity === 'warning' ? 'bg-amber-400 text-amber-400' : 
+                            insight.severity === 'alert' ? 'bg-rose-400 text-rose-400' : 'bg-emerald-400 text-emerald-400'}`} />
+                        <p className="text-sm text-slate-300 leading-relaxed">{insight.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <button className="mt-6 w-full py-2.5 rounded-lg border border-white/10 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition relative z-10">
+                  إنشاء تحليل عميق
+                </button>
+              </div>
+
+              {/* Live Activity Log - top-right */}
+              <div className="order-2 rtl:order-1 lg:col-span-2 max-h-[420px] w-full rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col relative overflow-hidden">
                 <div className="flex justify-between items-center mb-6 shrink-0">
                   <h3 className="text-lg font-semibold text-white">سجل النشاط المباشر</h3>
                   <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
@@ -483,41 +523,31 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-linear-to-b from-[#0B101E] to-[#0A0D18] border border-white/5 p-6 flex flex-col relative overflow-hidden">
-                {/* Converted -right-10 to -end-10 */}
-                <div className="absolute -inset-e-10 -top-10 text-white/5">
-                  <BrainCircuit size={150} />
-                </div>
-                
-                <div className="flex items-center gap-3 mb-6 relative z-10">
-                  <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 shadow-[0_0_15px_rgba(0,102,255,0.2)]">
-                    <BrainCircuit size={20} className="text-blue-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">رؤى أوريون للذكاء الاصطناعي</h3>
-                </div>
-
-                <div className="flex-1 flex flex-col gap-4 relative z-10">
-                  {insights.map((insight) => (
-                    <div key={insight.id} className="p-4 rounded-xl bg-white/3 border border-white/5 hover:bg-white/5 transition cursor-default">
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] shrink-0
-                          ${insight.severity === 'warning' ? 'bg-amber-400 text-amber-400' : 
-                            insight.severity === 'alert' ? 'bg-rose-400 text-rose-400' : 'bg-emerald-400 text-emerald-400'}`} />
-                        <p className="text-sm text-slate-300 leading-relaxed">{insight.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <button className="mt-6 w-full py-2.5 rounded-lg border border-white/10 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition relative z-10">
-                  إنشاء تحليل عميق
-                </button>
-              </div>
-
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-              
+              {/* Productivity Trend - bottom-left */}
+              <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col min-h-[280px] relative overflow-hidden md:col-span-2 lg:col-span-1">
+                <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none opacity-0 lg:opacity-100" />
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 z-10 shrink-0">
+                  <div>
+                    <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
+                    <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
+                  </div>
+                  <div className="flex gap-2" dir="ltr">
+                    {['1D', '7D', '1M', 'YTD'].map((t, i) => (
+                      <button key={i} className={`text-xs px-3 py-1 rounded-md transition ${i === 1 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 w-full min-h-[160px] relative z-10 flex flex-col min-h-0">
+                  <AreaChart data={weeklyProductivity} dates={weeklyDates} loading={loading} />
+                </div>
+              </div>
+
+              {/* Department Activity - bottom-center */}
               <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-white">نشاط القسم</h3>
@@ -534,6 +564,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* App Distribution - bottom-right */}
               <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col">
                 <h3 className="text-lg font-semibold text-white mb-6">توزيع فئات التطبيقات</h3>
                 <div className="flex-1 flex items-center justify-center relative">
@@ -553,26 +584,6 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#6366F1]"></div> <span className="text-slate-300" dir="ltr">تواصل (25%)</span></div>
                   <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#14B8A6]"></div> <span className="text-slate-300" dir="ltr">تصميم (10%)</span></div>
                   <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#1E293B]"></div> <span className="text-slate-300" dir="ltr">أخرى (5%)</span></div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col min-h-[280px] relative overflow-hidden md:col-span-2 lg:col-span-1">
-                <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none opacity-0 lg:opacity-100" />
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 z-10 shrink-0">
-                  <div>
-                    <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
-                    <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
-                  </div>
-                  <div className="flex gap-2" dir="ltr">
-                    {['1D', '7D', '1M', 'YTD'].map((t, i) => (
-                      <button key={i} className={`text-xs px-3 py-1 rounded-md transition ${i === 1 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex-1 w-full min-h-[160px] relative z-10 flex flex-col min-h-0">
-                  <AreaChart data={weeklyProductivity} dates={weeklyDates} loading={loading} />
                 </div>
               </div>
 
