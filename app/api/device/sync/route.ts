@@ -104,12 +104,11 @@ export async function POST(request: Request) {
       await prisma.deviceLoginEvent.create({
           data: {
             id,
-            companyId,
             deviceId,
             employeeId: employee.id,
             loginAt,
             logoutAt: logoutAt ?? undefined,
-            reason,
+            reason: (reason as any) ?? undefined,
         },
       })
       inserted.loginEvents++
