@@ -1,15 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer } from 'http';
 import { prisma } from './prisma';
 import { deviceConnections, dashboardConnections } from './ws-connection-store';
 import { sendRequestLiveFrame } from './device-commands';
 import * as fs from 'fs';
 import * as path from 'path';
-
-const WS_PORT = Number(process.env.WS_PORT ?? 4001);
-
-let wss: WebSocketServer | null = null;
-let httpServer: ReturnType<typeof createServer> | null = null;
 
 const LIVE_SCREENSHOTS_DIR = path.join(process.cwd(), 'public', 'live-screenshots');
 
@@ -294,15 +288,25 @@ function startOfflineDetector(): void {
   }, OFFLINE_CHECK_INTERVAL_MS);
 }
 
-const WS_PATH = process.env.WS_PATH ?? '/ws';
+let offlineDetectorStarted = false;
 
-function startServer(): void {
+function startOfflineDetectorOnce(): void {
+  if (offlineDetectorStarted) return;
+  offlineDetectorStarted = true;
+  startOfflineDetector();
+}
+
+/**
+ * Attach WebSocket connection handlers to an existing WebSocketServer.
+ * Used by custom server.js when WS is mounted on the same HTTP server as Next.js.
+ */
+export function attachWebSocketHandlers(wss: WebSocketServer): void {
   ensureLiveScreenshotsDir();
-  httpServer = createServer();
-  // Bind to /ws for production reverse proxy (wss://orionguard.lottifi.com/ws)
-  wss = new WebSocketServer({ server: httpServer, path: WS_PATH });
+  startOfflineDetectorOnce();
 
   wss.on('connection', (ws: WebSocket) => {
+    console.log('PRODUCTION WS CONNECTED');
+
     ws.on('message', (data: Buffer) => {
       const devId = (ws as WebSocket & { _deviceIdentifier?: string })._deviceIdentifier;
       handleMessage(ws, data, devId ?? null);
@@ -321,46 +325,6 @@ function startServer(): void {
 
     ws.on('error', () => {
       // connection error
-    });
-  });
-
-  httpServer.listen(WS_PORT, () => {
-    startOfflineDetector();
-  });
-}
-
-const IS_SERVERLESS =
-  typeof process.env.VERCEL !== 'undefined' ||
-  typeof process.env.AWS_LAMBDA_FUNCTION_NAME !== 'undefined' ||
-  process.env.NEXT_RUNTIME === 'edge';
-
-export function startWebSocketServer(): void {
-  if (IS_SERVERLESS) {
-    console.warn(
-      '[WS] ⚠️ WebSocket is not supported in serverless mode. Set VERCEL=0 or deploy to a Node.js server (Railway, VPS, etc.) for WebSocket support.'
-    );
-    return;
-  }
-  if (!(globalThis as unknown as { _wsServerStarted?: boolean })._wsServerStarted) {
-    (globalThis as unknown as { _wsServerStarted?: boolean })._wsServerStarted = true;
-    startServer();
-  }
-}
-
-export function stopWebSocketServer(): Promise<void> {
-  return new Promise((resolve) => {
-    if (!wss || !httpServer) {
-      resolve();
-      return;
-    }
-    deviceConnections.clear();
-    dashboardConnections.clear();
-    wss.close(() => {
-      httpServer?.close(() => {
-        wss = null;
-        httpServer = null;
-        resolve();
-      });
     });
   });
 }

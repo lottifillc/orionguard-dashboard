@@ -104,7 +104,7 @@ export default function DeviceScreenshotsPage({
     if (env) return env
     const { protocol, hostname } = window.location
     const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:'
-    const port = protocol === 'https:' ? '' : ':4001'
+    const port = protocol === 'https:' ? '' : ':3000'
     return `${wsProtocol}//${hostname}${port}/ws`
   }
 
