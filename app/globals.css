@@ -32,3 +32,26 @@ html[dir="rtl"] {
 html[dir="rtl"] .ltr {
   direction: ltr;
 }
+
+.scrollbar-orion {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.4) transparent;
+}
+
+.scrollbar-orion::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-orion::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.scrollbar-orion::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  border-radius: 3px;
+}
+
+.scrollbar-orion::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.55);
+}

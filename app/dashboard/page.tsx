@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   LayoutDashboard, Users, MonitorSmartphone, Activity, 
   Image as ImageIcon, Bell, Settings, Search, ChevronDown, 
@@ -26,6 +26,80 @@ type OverviewData = {
 }
 
 // --- COMPONENTS ---
+
+const CompanyDropdown = ({
+  companies,
+  value,
+  onChange,
+}: {
+  companies: { id: string; name: string }[]
+  value: string | null
+  onChange: (id: string | null) => void
+}) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [])
+
+  const selected = companies.find((c) => c.id === value)
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-sm text-slate-300 bg-[#0B101E] border border-white/10 hover:border-white/20 px-4 py-2 rounded-lg transition min-w-[180px] justify-between"
+      >
+        <span className="flex items-center gap-2 truncate">
+          <Server size={16} className="text-blue-500 shrink-0" />
+          <span className="truncate">{selected?.name ?? 'جميع الشركات'}</span>
+        </span>
+        <ChevronDown size={14} className={`text-slate-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 start-0 end-0 min-w-full bg-[#0B101E] border border-white/10 rounded-lg shadow-xl shadow-black/50 py-1 z-50 overflow-hidden">
+          {companies.length === 0 ? (
+            <div className="px-4 py-3 text-slate-500 text-sm">لا توجد شركات</div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(null)
+                  setOpen(false)
+                }}
+                className={`w-full text-start px-4 py-2.5 text-sm transition
+                  ${!value ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+              >
+                جميع الشركات
+              </button>
+              {companies.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(c.id)
+                    setOpen(false)
+                  }}
+                  className={`w-full text-start px-4 py-2.5 text-sm transition
+                    ${c.id === value ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Converted ml-auto to ms-auto for RTL support
 const SidebarItem = ({ icon: Icon, label, active }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; active?: boolean }) => (
@@ -319,25 +393,11 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold text-white tracking-wide">نظرة عامة على المؤسسة</h2>
             <div className="h-6 w-px bg-white/10" />
             
-            <div className="flex items-center gap-2 text-sm text-slate-300 bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
-              <Server size={16} className="text-blue-500 shrink-0" />
-              <select
-                value={companyId ?? ''}
-                onChange={(e) => setCompanyId(e.target.value || null)}
-                className="bg-transparent border-none text-inherit focus:outline-none focus:ring-0 cursor-pointer min-w-0"
-              >
-                {(data?.companies ?? []).length === 0 ? (
-                  <option value="" className="bg-[#0B101E] text-white">لا توجد شركات</option>
-                ) : (
-                  (data?.companies ?? []).map((c) => (
-                    <option key={c.id} value={c.id} className="bg-[#0B101E] text-white">
-                      {c.name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <ChevronDown size={14} className="ms-1 text-slate-500 shrink-0 pointer-events-none" />
-            </div>
+            <CompanyDropdown
+              companies={data?.companies ?? []}
+              value={companyId}
+              onChange={setCompanyId}
+            />
           </div>
 
           <div className="flex items-center gap-4">
@@ -391,23 +451,35 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              <div className="lg:col-span-2 h-[350px] w-full rounded-2xl bg-[#0B101E] border border-white/5 p-6 relative overflow-hidden flex flex-col shrink-0">
-                <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none" />
-                <div className="flex justify-between items-center mb-4 z-10 shrink-0">
-                  <div>
-                    <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
-                    <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
-                  </div>
-                  <div className="flex gap-2" dir="ltr">
-                    {['1D', '7D', '1M', 'YTD'].map((t, i) => (
-                      <button key={i} className={`text-xs px-3 py-1 rounded-md transition ${i === 1 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
-                        {t}
-                      </button>
-                    ))}
+              <div className="lg:col-span-2 max-h-[420px] w-full rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col relative overflow-hidden">
+                <div className="flex justify-between items-center mb-6 shrink-0">
+                  <h3 className="text-lg font-semibold text-white">سجل النشاط المباشر</h3>
+                  <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
+                    مباشر
                   </div>
                 </div>
-                <div className="mt-auto w-full max-h-[200px] relative z-10 shrink-0 flex flex-col min-h-0">
-                  <AreaChart data={weeklyProductivity} dates={weeklyDates} loading={loading} />
+                <div className="flex-1 flex flex-col gap-0 relative min-h-0 max-h-[320px] overflow-y-auto scroll-smooth scrollbar-orion pe-1">
+                  <div className="absolute inset-s-2.5 top-2 bottom-2 w-px bg-white/10 z-0"></div>
+                  {activities.map((act) => (
+                    <div key={act.id} className="relative z-10 flex gap-4 p-3 hover:bg-white/2 rounded-lg transition group">
+                      <div className="mt-1">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0B101E] relative z-10
+                          ${act.status === 'success' ? 'bg-emerald-500' : 
+                            act.status === 'error' ? 'bg-rose-500' : 
+                            act.status === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#0B101E]"></div>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start gap-2 mb-0.5">
+                          <span className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors truncate">{act.user}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0">{act.time}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 truncate">{act.action}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -444,7 +516,7 @@ export default function Dashboard() {
 
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
               
               <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-6">
@@ -484,37 +556,23 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-semibold text-white">سجل النشاط المباشر</h3>
-                  <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div>
-                    مباشر
+              <div className="rounded-2xl bg-[#0B101E] border border-white/5 p-6 flex flex-col min-h-[280px] relative overflow-hidden md:col-span-2 lg:col-span-1">
+                <div className="absolute top-0 inset-e-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -translate-y-1/2 rtl:-translate-x-1/2 ltr:translate-x-1/2 pointer-events-none opacity-0 lg:opacity-100" />
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 z-10 shrink-0">
+                  <div>
+                    <h3 className="text-lg font-semibold">اتجاه الإنتاجية</h3>
+                    <p className="text-sm text-slate-500">منحنى الأداء لـ 7 أيام عبر جميع العقد</p>
+                  </div>
+                  <div className="flex gap-2" dir="ltr">
+                    {['1D', '7D', '1M', 'YTD'].map((t, i) => (
+                      <button key={i} className={`text-xs px-3 py-1 rounded-md transition ${i === 1 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
+                        {t}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="flex-1 flex flex-col gap-0 relative">
-                  {/* Converted left-2.5 to start-2.5 */}
-                  <div className="absolute inset-s-2.5 top-2 bottom-2 w-px bg-white/10 z-0"></div>
-                  
-                  {activities.map((act) => (
-                    <div key={act.id} className="relative z-10 flex gap-4 p-3 hover:bg-white/2 rounded-lg transition group">
-                      <div className="mt-1">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0B101E] relative z-10
-                          ${act.status === 'success' ? 'bg-emerald-500' : 
-                            act.status === 'error' ? 'bg-rose-500' : 
-                            act.status === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#0B101E]"></div>
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">{act.user}</span>
-                          <span className="text-[10px] text-slate-500">{act.time}</span>
-                        </div>
-                        <p className="text-xs text-slate-400">{act.action}</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex-1 w-full min-h-[160px] relative z-10 flex flex-col min-h-0">
+                  <AreaChart data={weeklyProductivity} dates={weeklyDates} loading={loading} />
                 </div>
               </div>
 
