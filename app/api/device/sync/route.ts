@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import type { ActivityCategory, LoginReason } from '@prisma/client'
 
 export const runtime = "nodejs";
 
@@ -24,12 +23,12 @@ function parseDate(value: unknown): Date | null {
   return null
 }
 
-function parseLoginReason(value: unknown): LoginReason {
+function parseLoginReason(value: unknown): string {
   if (value === 'SUPERVISOR' || value === 'ADMIN_OVERRIDE') return value
   return 'NORMAL'
 }
 
-function parseActivityCategory(value: unknown): ActivityCategory | null {
+function parseActivityCategory(value: unknown): string | null {
   if (value === 'PRODUCTIVE' || value === 'NEUTRAL' || value === 'DISTRACTION') return value
   return null
 }
