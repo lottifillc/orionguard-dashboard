@@ -294,10 +294,13 @@ function startOfflineDetector(): void {
   }, OFFLINE_CHECK_INTERVAL_MS);
 }
 
+const WS_PATH = process.env.WS_PATH ?? '/ws';
+
 function startServer(): void {
   ensureLiveScreenshotsDir();
   httpServer = createServer();
-  wss = new WebSocketServer({ server: httpServer });
+  // Bind to /ws for production reverse proxy (wss://orionguard.lottifi.com/ws)
+  wss = new WebSocketServer({ server: httpServer, path: WS_PATH });
 
   wss.on('connection', (ws: WebSocket) => {
     ws.on('message', (data: Buffer) => {

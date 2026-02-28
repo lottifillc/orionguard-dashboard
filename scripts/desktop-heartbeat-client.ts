@@ -6,8 +6,8 @@
  * Run: npx tsx scripts/desktop-heartbeat-client.ts
  * Or integrate this logic into your actual desktop app (Electron, etc.)
  *
- * Env: WS_URL (default ws://localhost:4001)
- *      API_URL (default http://localhost:3000)
+ * Env: WS_URL (default from NEXT_PUBLIC_WS_BASE or ws://localhost:4001)
+ *      API_URL (default from NEXT_PUBLIC_API_BASE or http://localhost:3000)
  *      DEVICE_ID (default ORION-DEVICE-001)
  */
 
@@ -15,8 +15,8 @@ import WebSocket from 'ws'
 import { prisma } from '../lib/prisma'
 const screenshot = require('screenshot-desktop')
 
-const WS_URL = process.env.WS_URL ?? 'ws://localhost:4001'
-const API_URL = (process.env.API_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+const WS_URL = process.env.WS_URL ?? process.env.NEXT_PUBLIC_WS_BASE ?? 'ws://localhost:4001'
+const API_URL = (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000').replace(/\/$/, '')
 const DEVICE_ID = process.env.DEVICE_ID ?? 'ORION-DEVICE-001'
 
 async function getCompanyId(deviceIdentifier: string): Promise<string | null> {

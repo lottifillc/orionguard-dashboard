@@ -21,7 +21,7 @@ async function main() {
   console.log('TESTING DEVICE:', device.deviceIdentifier)
 
   // STEP 2: CALL LIST ENDPOINT INTERNALLY
-  const baseUrl = 'http://localhost/api/device/screenshot/list'
+  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000').replace(/\/$/, '') + '/api/device/screenshot/list'
   const deviceId = device.deviceIdentifier
 
   const req1 = new Request(`${baseUrl}?deviceId=${encodeURIComponent(deviceId)}&page=1&limit=5`)

@@ -100,11 +100,12 @@ export default function DeviceScreenshotsPage({
 
   function getWsUrl(): string {
     if (typeof window === 'undefined') return ''
-    const env = process.env.NEXT_PUBLIC_WS_URL
+    const env = process.env.NEXT_PUBLIC_WS_BASE
     if (env) return env
     const { protocol, hostname } = window.location
     const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${wsProtocol}//${hostname}:4001`
+    const port = protocol === 'https:' ? '' : ':4001'
+    return `${wsProtocol}//${hostname}${port}/ws`
   }
 
   useEffect(() => {
