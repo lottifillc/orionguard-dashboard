@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { unlink } from 'fs/promises'
-import { join } from 'path'
+import { toAbsolutePath } from '@/lib/screenshot-paths'
 
 export const runtime = 'nodejs'
 
@@ -56,10 +56,7 @@ export async function DELETE(
     // TODO: Add role check when auth is implemented:
     // if (userRole !== 'ADMIN' && userRole !== 'SUPERVISOR') return 403
 
-    const filePath = screenshot.filePath.startsWith('/')
-      ? screenshot.filePath.slice(1)
-      : screenshot.filePath
-    const fullPath = join(process.cwd(), 'public', filePath)
+    const fullPath = toAbsolutePath(screenshot.filePath)
 
     try {
       await unlink(fullPath)

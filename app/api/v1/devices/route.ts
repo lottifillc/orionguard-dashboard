@@ -1,21 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { toWebUrl, toAbsolutePath } from '@/lib/screenshot-paths'
 
 export const runtime = 'nodejs'
-
-function toFileUrl(filePath: string): string {
-  const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
-  const base = fileName.includes('\\') ? fileName.split('\\').pop() ?? fileName : fileName
-  return `/live-screenshots/${base}`
-}
-
-function resolvePublicPath(filePath: string): string {
-  const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
-  const base = fileName.includes('\\') ? fileName.split('\\').pop() ?? fileName : fileName
-  return join(process.cwd(), 'public', 'live-screenshots', base)
-}
 
 export async function GET(request: Request) {
   try {
@@ -106,8 +94,8 @@ export async function GET(request: Request) {
     for (const sc of lastScreenshots) {
       const did = sc.session.deviceId
       if (!screenshotByDevice.has(did)) {
-        const fileUrl = toFileUrl(sc.filePath)
-        const fullPath = resolvePublicPath(sc.filePath)
+        const fileUrl = toWebUrl(sc.filePath)
+        const fullPath = toAbsolutePath(sc.filePath)
         if (existsSync(fullPath)) {
           screenshotByDevice.set(did, { fileUrl, capturedAt: sc.capturedAt })
         }

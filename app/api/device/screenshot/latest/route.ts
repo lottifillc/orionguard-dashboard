@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { readdirSync } from 'fs'
-import { join } from 'path'
+import { LIVE_SCREENSHOTS_DIR, toWebUrl } from '@/lib/screenshot-paths'
 
 const NO_CACHE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -24,11 +24,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
-function toFileUrl(filePath: string, cacheBust = true): string {
-  const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
-  const base = `/live-screenshots/${fileName}`
-  return cacheBust ? `${base}?t=${Date.now()}` : base
-}
 
 export async function GET(request: Request) {
   try {
@@ -98,8 +93,7 @@ export async function GET(request: Request) {
       const prefix = `${device.deviceIdentifier}-`
 
       try {
-        const screenshotsDir = join(process.cwd(), 'public', 'live-screenshots')
-        const files = readdirSync(screenshotsDir)
+        const files = readdirSync(LIVE_SCREENSHOTS_DIR)
         let scanned = 0
         for (const f of files) {
           if (!f.startsWith(prefix) || !f.endsWith('.png')) continue
@@ -120,8 +114,7 @@ export async function GET(request: Request) {
     }
 
     if (filePath) {
-      const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
-      const url = `/live-screenshots/${fileName}?t=${Date.now()}`
+      const url = `${toWebUrl(filePath)}?t=${Date.now()}`
       const responseData = {
         id: latestFromDb?.id ?? null,
         url,

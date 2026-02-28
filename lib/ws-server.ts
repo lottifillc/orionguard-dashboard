@@ -4,8 +4,11 @@ import { deviceConnections, dashboardConnections } from './ws-connection-store';
 import { sendRequestLiveFrame } from './device-commands';
 import * as fs from 'fs';
 import * as path from 'path';
-
-const LIVE_SCREENSHOTS_DIR = path.join(process.cwd(), 'public', 'live-screenshots');
+import {
+  LIVE_SCREENSHOTS_DIR,
+  ensureLiveScreenshotsDir,
+  toDbFilePath,
+} from './screenshot-paths';
 
 interface RegisterMessage {
   type: 'REGISTER';
@@ -17,12 +20,6 @@ interface ScreenshotResultMessage {
   type: 'SCREENSHOT_RESULT';
   deviceId: string;
   imageBase64: string;
-}
-
-function ensureLiveScreenshotsDir(): void {
-  if (!fs.existsSync(LIVE_SCREENSHOTS_DIR)) {
-    fs.mkdirSync(LIVE_SCREENSHOTS_DIR, { recursive: true });
-  }
 }
 
 async function handleRegister(
@@ -108,9 +105,9 @@ async function handleScreenshotResult(msg: ScreenshotResultMessage): Promise<voi
     });
   }
 
-  const dbFilePath = fileName;
+  const dbFilePath = toDbFilePath(fileName);
   const capturedAt = new Date(Date.now());
-  const saved = await prisma.screenshot.create({
+  await prisma.screenshot.create({
     data: {
       sessionId: session.id,
       deviceId: device.id,

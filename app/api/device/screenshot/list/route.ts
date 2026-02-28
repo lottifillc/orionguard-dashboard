@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { toWebUrl } from '@/lib/screenshot-paths'
 
 export const runtime = 'nodejs'
 
@@ -88,14 +89,9 @@ export async function GET(request: Request) {
       prisma.screenshot.count({ where }),
     ])
 
-    const fileName = (fp: string) => {
-      const parts = fp.split('/')
-      return parts[parts.length - 1] || fp
-    }
-
     const data = screenshots.map((s) => {
-      const fn = fileName(s.filePath)
-      const fileUrl = `/live-screenshots/${fn}`
+      const fileUrl = toWebUrl(s.filePath)
+      const fn = fileUrl.split('/').pop() ?? s.filePath
       return {
         id: s.id,
         deviceId: s.session.deviceId,

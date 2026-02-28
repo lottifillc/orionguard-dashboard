@@ -635,7 +635,7 @@ function GalleryCard({
     >
       <div className="absolute inset-0">
         <Image
-          src={item.fileUrl}
+          src={`${item.fileUrl}${item.fileUrl.includes('?') ? '&' : '?'}t=${new Date(item.createdAt).getTime()}`}
           alt={item.fileName}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -704,7 +704,7 @@ function ScreenshotModal({
             style={{ transform: `scale(${zoom})` }}
           >
             <Image
-              src={item.fileUrl}
+              src={`${item.fileUrl}${item.fileUrl.includes('?') ? '&' : '?'}t=${new Date(item.createdAt).getTime()}`}
               alt={item.fileName}
               width={1200}
               height={800}

@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { writeFileSync } from 'fs'
 import { join } from 'path'
+import {
+  LIVE_SCREENSHOTS_DIR,
+  ensureLiveScreenshotsDir,
+  toDbFilePath,
+} from '@/lib/screenshot-paths'
 
 export const runtime = 'nodejs'
-
-const LIVE_SCREENSHOTS_DIR = join(process.cwd(), 'public', 'live-screenshots')
-
-function ensureDir(): void {
-  if (!existsSync(LIVE_SCREENSHOTS_DIR)) {
-    mkdirSync(LIVE_SCREENSHOTS_DIR, { recursive: true })
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -47,7 +44,7 @@ export async function POST(request: Request) {
       )
     }
 
-    ensureDir()
+    ensureLiveScreenshotsDir()
     const timestamp = Date.now()
     const safeIdentifier = device.deviceIdentifier.replace(/[^a-zA-Z0-9-_]/g, '_')
     const fileName = `${safeIdentifier}-${timestamp}.png`
@@ -79,7 +76,7 @@ export async function POST(request: Request) {
       data: {
         sessionId: session.id,
         deviceId: device.id,
-        filePath: fileName,
+        filePath: toDbFilePath(fileName),
         capturedAt: new Date(timestamp),
       },
     })

@@ -15,6 +15,9 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 async function start() {
+  const { ensureLiveScreenshotsDir } = require('./lib/screenshot-paths');
+  ensureLiveScreenshotsDir();
+
   await app.prepare();
 
   const server = http.createServer(async (req, res) => {
