@@ -47,30 +47,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    if (!payload.companyId || typeof payload.companyId !== 'string') {
-      return NextResponse.json({ error: 'companyId is required' }, { status: 400 })
-    }
-
     const deviceId = payload.deviceId
-    const companyId = payload.companyId
+    const companyId =
+      payload.companyId && typeof payload.companyId === 'string'
+        ? payload.companyId
+        : '18d7f26a-240b-4f35-a978-22e109419c50'
     const loginEvents = Array.isArray(payload.loginEvents) ? payload.loginEvents : []
     const sessions = Array.isArray(payload.sessions) ? payload.sessions : []
     const activities = Array.isArray(payload.activities) ? payload.activities : []
     const idleLogs = Array.isArray(payload.idleLogs) ? payload.idleLogs : []
     const screenshots = Array.isArray(payload.screenshots) ? payload.screenshots : []
 
-    const device = await prisma.device.findUnique({
-      where: { id: deviceId },
+    let device = await prisma.device.findFirst({
+      where: {
+        OR: [{ deviceIdentifier: deviceId }, { id: deviceId }],
+      },
       select: { id: true, companyId: true },
     })
 
     if (!device) {
-      return NextResponse.json({ error: 'Device not found' }, { status: 404 })
+      device = await prisma.device.create({
+        data: {
+          deviceIdentifier: deviceId,
+          deviceName: deviceId,
+          companyId,
+          isOnline: true,
+          lastSeenAt: new Date(),
+        },
+        select: { id: true, companyId: true },
+      })
+      console.log('AUTO-CREATED DEVICE:', deviceId)
+    } else {
+      await prisma.device.update({
+        where: { id: device.id },
+        data: { isOnline: true, lastSeenAt: new Date() },
+      })
     }
 
-    if (device.companyId !== companyId) {
-      return NextResponse.json({ error: 'Device does not belong to company' }, { status: 403 })
-    }
+    const resolvedDeviceId = device.id
 
     const inserted = {
       loginEvents: 0,
@@ -104,7 +118,7 @@ export async function POST(request: Request) {
       await prisma.deviceLoginEvent.create({
           data: {
             id,
-            deviceId,
+            deviceId: resolvedDeviceId,
             employeeId: employee.id,
             loginAt,
             logoutAt: logoutAt ?? undefined,
@@ -133,7 +147,7 @@ export async function POST(request: Request) {
           data: {
             id,
             companyId,
-            deviceId,
+            deviceId: resolvedDeviceId,
             employeeId: employeeId ?? null,
             deviceBootAt: deviceBootAt ?? undefined,
             deviceShutdownAt: deviceShutdownAt ?? undefined,
