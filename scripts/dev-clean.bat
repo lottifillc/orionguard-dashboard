@@ -1,0 +1,9 @@
+@echo off
+cd /d "%~dp0.."
+echo [dev-clean] Stopping Node processes...
+taskkill /F /IM node.exe 2>nul
+timeout /t 2 /nobreak >nul
+echo [dev-clean] Removing .next folder...
+if exist .next rmdir /s /q .next
+echo [dev-clean] Starting Next.js dev server...
+npm run dev

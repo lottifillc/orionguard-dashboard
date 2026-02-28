@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { 
-  LayoutDashboard, Users, MonitorSmartphone, Activity, 
-  Image as ImageIcon, Bell, Settings, Search, ChevronDown, 
+  Users, MonitorSmartphone, Activity, 
+  Search, ChevronDown, Bell,
   Calendar, ArrowUpRight, ArrowDownRight, Zap, ShieldAlert,
-  Clock, Server, BrainCircuit, ActivitySquare
+  Clock, Server, BrainCircuit, ActivitySquare, Settings
 } from 'lucide-react';
 
 type OverviewData = {
@@ -100,20 +100,6 @@ const CompanyDropdown = ({
     </div>
   )
 }
-
-// Converted ml-auto to ms-auto for RTL support
-const SidebarItem = ({ icon: Icon, label, active }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; active?: boolean }) => (
-  <button 
-    className={`w-full flex items-center gap-3 px-4 py-3 mb-2 rounded-xl transition-all duration-300 group
-    ${active 
-      ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(0,102,255,0.15)]' 
-      : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}
-  >
-    <Icon size={20} className={`${active ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
-    <span className="font-medium text-sm">{label}</span>
-    {active && <div className="ms-auto w-1 h-5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(0,102,255,0.8)]" />}
-  </button>
-);
 
 type KPIDataItem = {
   title: string
@@ -341,61 +327,8 @@ export default function Dashboard() {
   const activities = data?.activities ?? []
 
   return (
-    <div className="h-screen w-full bg-[#050811] text-white flex overflow-hidden font-sans">
-      {/* Background Grid Overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.02]" 
-           style={{ backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-      {/* --- SIDEBAR --- */}
-      {/* Converted border-r to border-e */}
-      <aside className="w-72 border-e border-white/5 bg-[#080B14]/80 backdrop-blur-xl flex flex-col z-20">
-        <div className="h-20 flex items-center px-8 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-lg bg-linear-to-br from-blue-500/20 to-blue-900/20 border border-blue-500/30">
-              <ShieldAlert className="text-blue-500" size={20} />
-              <div className="absolute inset-0 blur-md bg-blue-500/20 rounded-lg" />
-            </div>
-            <div>
-              {/* Maintained English Brand per Enterprise standards, localized subtitle */}
-              <h1 className="font-bold text-lg tracking-widest text-white leading-tight" dir="ltr">ORION<span className="text-blue-500">GUARD</span></h1>
-              <p className="text-[9px] text-slate-500 font-medium tracking-widest uppercase mt-0.5">نظام ذكاء الإنتاجية</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-6 px-4 no-scrollbar">
-          <div className="text-xs font-semibold text-slate-600 mb-4 px-4 tracking-wider uppercase">اللوحة الرئيسية</div>
-          <SidebarItem icon={LayoutDashboard} label="نظرة عامة" active={true} />
-          <SidebarItem icon={Users} label="الموظفون" />
-          <SidebarItem icon={MonitorSmartphone} label="الأجهزة" />
-          <SidebarItem icon={ActivitySquare} label="التحليلات" />
-          
-          <div className="text-xs font-semibold text-slate-600 mb-4 mt-8 px-4 tracking-wider uppercase">المراقبة</div>
-          <SidebarItem icon={ImageIcon} label="لقطات الشاشة" />
-          <SidebarItem icon={Bell} label="التنبيهات" />
-          
-          <div className="text-xs font-semibold text-slate-600 mb-4 mt-8 px-4 tracking-wider uppercase">النظام</div>
-          <SidebarItem icon={Settings} label="الإعدادات" />
-        </div>
-
-        <div className="p-4 border-t border-white/5 bg-white/2">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition">
-            <div className="w-8 h-8 rounded-full bg-linear-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-sm font-bold shadow-[0_0_10px_rgba(0,102,255,0.4)]">
-              AD
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <div className="text-sm font-medium truncate">بوابة الإدارة</div>
-              <div className="text-xs text-slate-400 truncate">عقدة خادم المقر الرئيسي</div>
-            </div>
-            <ChevronDown size={16} className="text-slate-400" />
-          </div>
-        </div>
-      </aside>
-
-      {/* --- MAIN CONTENT --- */}
-      <main className="flex-1 flex flex-col h-full relative z-10">
-        
-        {/* --- TOP HEADER --- */}
+    <>
+      {/* --- TOP HEADER --- */}
         <header className="h-20 border-b border-white/5 bg-[#080B14]/50 backdrop-blur-md flex items-center justify-between px-8 z-20">
           <div className="flex items-center gap-6">
             <h2 className="text-xl font-semibold text-white tracking-wide">نظرة عامة على المؤسسة</h2>
@@ -590,7 +523,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

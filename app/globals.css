@@ -55,3 +55,12 @@ html[dir="rtl"] .ltr {
 .scrollbar-orion::-webkit-scrollbar-thumb:hover {
   background: rgba(59, 130, 246, 0.55);
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

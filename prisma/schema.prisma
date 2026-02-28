@@ -113,6 +113,7 @@ model Device {
   createdAt        DateTime  @default(now())
   isOnline         Boolean   @default(false)
   lastSeenAt       DateTime?
+  isDisabled       Boolean   @default(false)
 
   company           Company            @relation(fields: [companyId], references: [id])
   branch            Branch?            @relation(fields: [branchId], references: [id])
@@ -200,6 +201,7 @@ model IdleLog {
 model Screenshot {
   id         String   @id @default(cuid())
   sessionId  String
+  deviceId   String?
   filePath   String
   capturedAt DateTime @default(now())
 
@@ -207,6 +209,8 @@ model Screenshot {
 
   @@index([sessionId])
   @@index([capturedAt])
+  @@index([sessionId, capturedAt])
+  @@index([deviceId, capturedAt])
 }
 
 model EmployeeDailyStats {
