@@ -83,18 +83,37 @@ export default function DeviceScreenshotsPage({
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null)
+  const [liveImage, setLiveImage] = useState<string | null>(null)
   const [previewCapturedAt, setPreviewCapturedAt] = useState<string | null>(null)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
+  const [previewTimestamp, setPreviewTimestamp] = useState<number>(() => Date.now())
   const [previewError, setPreviewError] = useState(false)
   const [capturing, setCapturing] = useState(false)
+  const [livePreviewOn, setLivePreviewOn] = useState(false)
   const lastLatestRef = useRef<string | null>(null)
+  const lastScreenshotIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const livePreviewIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
 
   const resolvedParams = React.use(params)
+
+  function getWsUrl(): string {
+    if (typeof window === 'undefined') return ''
+    const env = process.env.NEXT_PUBLIC_WS_URL
+    if (env) return env
+    const { protocol, hostname } = window.location
+    const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${hostname}:4001`
+  }
 
   useEffect(() => {
     setDeviceId(resolvedParams.deviceId)
     setLivePreviewUrl(null)
+    setLiveImage(null)
+    setPreviewCapturedAt(null)
+    setLivePreviewOn(false)
+    lastScreenshotIdRef.current = null
     setPreviewError(false)
   }, [resolvedParams.deviceId])
 
@@ -156,13 +175,21 @@ export default function DeviceScreenshotsPage({
       )
       if (!r.ok) return
       const data = await r.json()
-      const url = data.data?.imageUrl ?? data.data?.url
-      const capturedAt = data.data?.capturedAt ?? null
-      if (url) {
+      const payload = data.data
+      const url = payload?.imageUrl ?? payload?.url
+      const capturedAt = payload?.capturedAt ?? null
+      const screenshotId = payload?.id ?? null
+      const basePath = url?.split('?')[0] ?? ''
+      const isNewScreenshot = url && (screenshotId !== lastScreenshotIdRef.current || basePath !== lastLatestRef.current)
+      if (isNewScreenshot) {
+        lastScreenshotIdRef.current = screenshotId
+        lastLatestRef.current = basePath
         setLivePreviewUrl(url)
         setPreviewCapturedAt(capturedAt)
+        setPreviewRefreshKey((k) => k + 1)
+        setPreviewTimestamp(Date.now())
         setPreviewError(false)
-      } else {
+      } else if (!url) {
         setLivePreviewUrl(null)
         setPreviewCapturedAt(null)
         setPreviewError(true)
@@ -194,12 +221,87 @@ export default function DeviceScreenshotsPage({
     }
   }, [deviceId, fetchLatestPreview])
 
+  // Initial fetch when device loads
   useEffect(() => {
     if (!deviceId) return
     fetchLatestPreview()
-    const interval = setInterval(fetchLatestPreview, 3000)
-    return () => clearInterval(interval)
   }, [deviceId, fetchLatestPreview])
+
+  // Live Preview: WebSocket + 1000ms interval, REQUEST_LIVE_FRAME each tick, fetch on LIVE_FRAME_READY
+  useEffect(() => {
+    if (!deviceId || !livePreviewOn) {
+      setLiveImage(null)
+      if (livePreviewIntervalRef.current) {
+        clearInterval(livePreviewIntervalRef.current)
+        livePreviewIntervalRef.current = null
+      }
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+      return
+    }
+
+    const wsUrl = getWsUrl()
+    if (!wsUrl) {
+      setPreviewError(true)
+      return
+    }
+
+    const ws = new WebSocket(wsUrl)
+    ws.binaryType = 'arraybuffer'
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      livePreviewIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'REQUEST_LIVE_FRAME', deviceId }))
+        }
+      }, 1000)
+    }
+
+    ws.onmessage = (event) => {
+      console.log('WS RAW:', event.data)
+      try {
+        const raw = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)
+        const msg = JSON.parse(raw) as {
+          type?: string
+          deviceId?: string
+          deviceIdentifier?: string
+          image?: string
+          timestamp?: string
+        }
+        if (msg.type === 'LIVE_FRAME') {
+          if (msg.deviceId === deviceId || msg.deviceIdentifier === deviceId) {
+            const imageSrc = `data:image/jpeg;base64,${msg.image}`
+            const cacheBustedSrc = imageSrc + `#${Date.now()}`
+            setLiveImage(cacheBustedSrc)
+            setPreviewError(false)
+            console.log('LIVE FRAME UPDATED')
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    ws.onerror = () => setPreviewError(true)
+    ws.onclose = () => {
+      if (livePreviewIntervalRef.current) {
+        clearInterval(livePreviewIntervalRef.current)
+        livePreviewIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (livePreviewIntervalRef.current) {
+        clearInterval(livePreviewIntervalRef.current)
+        livePreviewIntervalRef.current = null
+      }
+      ws.close()
+      wsRef.current = null
+    }
+  }, [deviceId, livePreviewOn])
 
   useEffect(() => {
     if (!deviceId || !liveMode) return
@@ -283,7 +385,7 @@ export default function DeviceScreenshotsPage({
   const pag = pagination ?? { page: 1, totalPages: 1, totalCount: 0 }
 
   return (
-    <>
+    <div dir="rtl">
       <header className="h-20 border-b border-white/5 bg-[#080B14]/50 backdrop-blur-md flex items-center justify-between px-4 md:px-8 z-20 shrink-0">
         <div className="flex items-center gap-4">
           <Link
@@ -368,13 +470,32 @@ export default function DeviceScreenshotsPage({
             </div>
           </div>
 
-          {/* Live Preview - auto-refresh every 5s */}
+          {/* Live Preview - requests new screenshot every 2s when ON */}
           {deviceId && (
             <div className="rounded-2xl bg-[#0B101E] border border-white/5 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Radio size={16} className="text-blue-400 animate-pulse" />
                   <span className="text-sm font-medium text-white">معاينة مباشرة</span>
+                  {livePreviewOn && (
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                      </span>
+                      مباشر
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLivePreviewOn((on) => !on)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition border
+                      ${livePreviewOn
+                        ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                        : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20'
+                      }`}
+                  >
+                    {livePreviewOn ? 'إيقاف المعاينة' : 'بدء المعاينة المباشرة'}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -391,6 +512,7 @@ export default function DeviceScreenshotsPage({
                     onClick={() => {
                       setPreviewError(false)
                       setPreviewRefreshKey((k) => k + 1)
+                      setPreviewTimestamp(Date.now())
                       fetchLatestPreview()
                     }}
                     className="px-3 py-1.5 rounded-lg text-sm bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition"
@@ -400,17 +522,17 @@ export default function DeviceScreenshotsPage({
                 </div>
               </div>
               <div className="aspect-video bg-[#080B14] flex items-center justify-center min-h-[240px] relative">
-                {previewError || !livePreviewUrl ? (
-                  <p className="text-slate-500 text-sm">لا توجد لقطات حتى الآن</p>
-                ) : (
+                {(livePreviewOn ? liveImage : livePreviewUrl) ? (
                   <img
-                    src={`${livePreviewUrl}${livePreviewUrl.includes('?') ? '&' : '?'}r=${previewRefreshKey}`}
-                    key={`${livePreviewUrl}-${previewCapturedAt ?? previewRefreshKey}`}
-                    alt="Live Preview"
-                    className="w-full h-auto rounded-xl object-contain max-h-[60vh]"
-                    onLoad={() => setPreviewError(false)}
-                    onError={() => setPreviewError(true)}
+                    src={livePreviewOn ? liveImage! : livePreviewUrl!}
+                    alt="المعاينة المباشرة"
+                    className="w-full h-auto rounded-xl shadow-lg"
+                    style={{ objectFit: 'contain' }}
                   />
+                ) : (
+                  <div className="text-center text-gray-400 py-20">
+                    لا توجد صورة حالياً
+                  </div>
                 )}
               </div>
             </div>
@@ -491,7 +613,7 @@ export default function DeviceScreenshotsPage({
         visible={!!toast}
         onDismiss={() => setToast(null)}
       />
-    </>
+    </div>
   )
 }
 

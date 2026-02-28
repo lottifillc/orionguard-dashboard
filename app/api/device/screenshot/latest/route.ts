@@ -34,7 +34,6 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const deviceId = searchParams.get('deviceId')
-    console.log('[API] latest called for:', deviceId)
 
     if (!deviceId) {
       return NextResponse.json(
@@ -55,7 +54,6 @@ export async function GET(request: Request) {
         DB_TIMEOUT_MS
       )
     } catch (e) {
-      console.log('[API] FALLBACK triggered - device lookup failed:', (e as Error).message)
       return NextResponse.json(
         { success: true, data: null },
         { status: 200, headers: NO_CACHE_HEADERS }
@@ -76,13 +74,15 @@ export async function GET(request: Request) {
           where: {
             OR: [{ deviceId: device.id }, { session: { deviceId: device.id } }],
           },
-          orderBy: { capturedAt: 'desc' },
+          orderBy: [
+            { capturedAt: 'desc' },
+            { id: 'desc' },
+          ],
           select: { id: true, filePath: true, capturedAt: true },
         }),
         DB_TIMEOUT_MS
       )
     } catch (e) {
-      console.log('[API] FALLBACK triggered - DB query failed:', (e as Error).message)
       latestFromDb = null
     }
 
@@ -90,11 +90,9 @@ export async function GET(request: Request) {
     let capturedAt: string | null = null
 
     if (latestFromDb?.filePath) {
-      console.log('[API] DB result found:', latestFromDb.id)
       filePath = latestFromDb.filePath
       capturedAt = latestFromDb.capturedAt.toISOString()
     } else {
-      console.log('[API] DB result not found, falling back to filesystem')
       let latestFile: string | null = null
       let latestTs = 0
       const prefix = `${device.deviceIdentifier}-`
@@ -115,7 +113,6 @@ export async function GET(request: Request) {
         if (latestFile) {
           filePath = latestFile
           capturedAt = new Date(latestTs).toISOString()
-          console.log('[API] Found screenshot from filesystem:', latestFile)
         }
       } catch {
         // Directory may not exist
@@ -123,15 +120,21 @@ export async function GET(request: Request) {
     }
 
     if (filePath) {
-      const url = `/live-screenshots/${filePath.includes('/') ? filePath.split('/').pop() : filePath}?t=${Date.now()}`;
-      console.log('[API] latest returning url:', url, 'capturedAt:', capturedAt);
+      const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
+      const url = `/live-screenshots/${fileName}?t=${Date.now()}`
+      const responseData = {
+        id: latestFromDb?.id ?? null,
+        url,
+        imageUrl: url,
+        capturedAt,
+        filePath,
+      }
       return NextResponse.json(
-        { success: true, data: { url, imageUrl: url, capturedAt } },
+        { success: true, data: responseData },
         { status: 200, headers: NO_CACHE_HEADERS }
       )
     }
 
-    console.log('[API] No screenshot found, returning data: null')
     return NextResponse.json(
       { success: true, data: null },
       { status: 200, headers: NO_CACHE_HEADERS }

@@ -1,6 +1,7 @@
 /**
  * Desktop Client Heartbeat Simulator
  * Sends HEARTBEAT every 10 seconds. Handles LOCK_DEVICE / UNLOCK_DEVICE.
+ * Handles REQUEST_LIVE_FRAME: captures NEW screenshot, uploads, sends LIVE_FRAME_READY.
  *
  * Run: npx tsx scripts/desktop-heartbeat-client.ts
  * Or integrate this logic into your actual desktop app (Electron, etc.)
@@ -12,6 +13,7 @@
 
 import WebSocket from 'ws'
 import { prisma } from '../lib/prisma'
+const screenshot = require('screenshot-desktop')
 
 const WS_URL = process.env.WS_URL ?? 'ws://localhost:4001'
 const API_URL = (process.env.API_URL ?? 'http://localhost:3000').replace(/\/$/, '')
@@ -38,23 +40,57 @@ async function checkStartupStatus(): Promise<boolean> {
 
 function handleLockDevice(): void {
   console.log('[LOCK] LOCK_DEVICE received - stopping services, showing LockWindow')
-  // In real desktop app: stop tracking, stop sync, stop screenshot,
-  // show full-screen LockWindow, disable close/minimize, disable Alt+Tab
 }
 
 function handleUnlockDevice(): void {
   console.log('[LOCK] UNLOCK_DEVICE received - closing LockWindow, resuming services')
-  // In real desktop app: close LockWindow, restart tracking, resume sync
+}
+
+/**
+ * Capture NEW screenshot and upload to API.
+ * No caching, no reuse - fresh capture every time.
+ */
+async function captureAndUpload(dbDeviceId: string): Promise<boolean> {
+  try {
+    const img = await screenshot({ format: 'png' })
+    const formData = new FormData()
+    formData.append('deviceId', dbDeviceId)
+    formData.append('file', new Blob([new Uint8Array(img)], { type: 'image/png' }), `capture-${Date.now()}.png`)
+    const r = await fetch(`${API_URL}/api/device/upload-screenshot`, {
+      method: 'POST',
+      body: formData,
+    })
+    return r.ok
+  } catch (err) {
+    console.error('Screenshot failed:', err)
+    return false
+  }
+}
+
+/**
+ * Handle REQUEST_LIVE_FRAME: capture NEW screenshot, upload, send LIVE_FRAME_READY.
+ */
+async function handleRequestLiveFrame(ws: WebSocket, dbDeviceId: string): Promise<void> {
+  try {
+    const ok = await captureAndUpload(dbDeviceId)
+    if (ok && ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          type: 'LIVE_FRAME_READY',
+          deviceId: dbDeviceId,
+          timestamp: Date.now(),
+        })
+      )
+    }
+  } catch (err) {
+    console.error('[LIVE_FRAME] Capture/upload failed:', err)
+  }
 }
 
 /**
  * Handle CAPTURE_SCREEN command.
- * In a real Electron app: use desktopCapturer or screenshot-desktop to capture.
- * This simulator sends a minimal placeholder PNG for testing the flow.
  */
 function handleCaptureScreen(ws: WebSocket, deviceIdentifier: string): void {
-  console.log('[CAPTURE] CAPTURE_SCREEN received')
-  // Placeholder: 1x1 transparent PNG (real app would use screenshot-desktop or Electron desktopCapturer)
   const placeholderBase64 =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
   if (ws.readyState === WebSocket.OPEN) {
@@ -65,7 +101,6 @@ function handleCaptureScreen(ws: WebSocket, deviceIdentifier: string): void {
         imageBase64: placeholderBase64,
       })
     )
-    console.log('[CAPTURE] Sent placeholder SCREENSHOT_RESULT (integrate real capture in Electron app)')
   }
 }
 
@@ -74,9 +109,9 @@ function runClient() {
 
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null
   let deviceIdentifier: string = DEVICE_ID
+  let dbDeviceId: string = ''
 
   ws.on('open', () => {
-    console.log('Connected to WebSocket server')
     getCompanyId(DEVICE_ID).then((companyId) => {
       if (!companyId) {
         console.error('Device not found or no company. Run bootstrap first.')
@@ -95,21 +130,23 @@ function runClient() {
 
   ws.on('message', (data: Buffer) => {
     try {
-      const msg = JSON.parse(data.toString()) as { type?: string }
+      const msg = JSON.parse(data.toString()) as { type?: string; deviceId?: string }
       if (msg.type === 'REGISTERED') {
         deviceIdentifier = DEVICE_ID
-        console.log('Registered as device:', deviceIdentifier)
+        dbDeviceId = (msg as { deviceId?: string }).deviceId ?? DEVICE_ID
         heartbeatInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'HEARTBEAT', deviceId: deviceIdentifier }))
-            console.log('HEARTBEAT SENT')
           }
         }, 10_000)
+      } else if (msg.type === 'REQUEST_LIVE_FRAME') {
+        const targetId = msg.deviceId ?? dbDeviceId
+        if (targetId) handleRequestLiveFrame(ws, targetId)
       } else if (msg.type === 'LOCK_DEVICE' || msg.type === 'LOCK') {
         handleLockDevice()
       } else if (msg.type === 'UNLOCK_DEVICE' || msg.type === 'UNLOCK') {
         handleUnlockDevice()
-      } else if (msg.type === 'CAPTURE_SCREEN') {
+      } else if (msg.type === 'CAPTURE_SCREEN' || msg.type === 'TAKE_SCREENSHOT') {
         handleCaptureScreen(ws, deviceIdentifier)
       } else if (msg.type === 'ERROR') {
         console.error('Server error:', (msg as { error?: string }).error)

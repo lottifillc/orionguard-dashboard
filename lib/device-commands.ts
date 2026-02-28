@@ -65,11 +65,26 @@ export async function sendScreenshotCommand(deviceId: string): Promise<boolean> 
   if (!deviceIdentifier) return false;
 
   if (!socket || socket.readyState !== 1 /* OPEN */) {
-    console.log('[device-commands] sendScreenshotCommand: device not connected, deviceIdentifier:', deviceIdentifier);
     throw new Error('Device not connected');
   }
 
-  console.log('[device-commands] sending CAPTURE_SCREEN to:', deviceIdentifier);
-  socket.send(JSON.stringify({ type: 'CAPTURE_SCREEN' }));
+  socket.send(JSON.stringify({ type: 'TAKE_SCREENSHOT' }));
+  return true;
+}
+
+/**
+ * Send REQUEST_LIVE_FRAME command to the specified device.
+ * Device must capture a NEW screenshot and send LIVE_FRAME_READY when done.
+ * @param deviceId - Device database id (cuid)
+ * @returns true if command was sent, false if device is offline
+ */
+export async function sendRequestLiveFrame(deviceId: string): Promise<boolean> {
+  const deviceIdentifier = await resolveDeviceIdentifier(deviceId);
+  if (!deviceIdentifier) return false;
+
+  const socket = deviceConnections.get(deviceIdentifier);
+  if (!socket || socket.readyState !== 1 /* OPEN */) return false;
+
+  socket.send(JSON.stringify({ type: 'REQUEST_LIVE_FRAME', deviceId }));
   return true;
 }
