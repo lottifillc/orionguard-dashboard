@@ -95,6 +95,7 @@ function ScreenshotPreview({
         className="rounded-lg border border-white/10 object-cover shrink-0"
         loading="lazy"
         onError={() => setError(true)}
+        unoptimized
       />
       <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
         <div className="rounded-lg border border-white/10 bg-[#0B101E] p-2 shadow-xl overflow-hidden w-[200px]">
@@ -104,6 +105,7 @@ function ScreenshotPreview({
             width={200}
             height={112}
             className="rounded object-cover w-full h-auto"
+            unoptimized
           />
           {capturedAt && (
             <p className="text-xs text-slate-400 mt-1 truncate">
