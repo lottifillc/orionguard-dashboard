@@ -104,24 +104,47 @@ model EmployeeShiftAssignment {
   @@index([employeeId, assignedFrom])
 }
 
+enum DeviceEventType {
+  REMOTE_LOCK
+  REMOTE_UNLOCK
+  EMERGENCY_UNLOCK
+}
+
 model Device {
-  id               String    @id @default(cuid())
-  companyId        String
-  branchId         String?
-  deviceIdentifier String    @unique
-  deviceName       String
-  createdAt        DateTime  @default(now())
-  isOnline         Boolean   @default(false)
-  lastSeenAt       DateTime?
-  isDisabled       Boolean   @default(false)
+  id                    String    @id @default(cuid())
+  companyId             String
+  branchId              String?
+  deviceIdentifier      String    @unique
+  deviceName            String
+  createdAt             DateTime  @default(now())
+  isOnline              Boolean   @default(false)
+  lastSeenAt            DateTime?
+  lastHeartbeatAt       DateTime?
+  isDisabled            Boolean   @default(false)
+  lastEmergencyUnlockAt DateTime?
 
   company           Company            @relation(fields: [companyId], references: [id])
   branch            Branch?            @relation(fields: [branchId], references: [id])
   sessions          Session[]
   deviceLoginEvents DeviceLoginEvent[]
+  deviceEvents      DeviceEvent[]
 
   @@index([companyId])
   @@index([branchId])
+  @@index([lastHeartbeatAt])
+}
+
+model DeviceEvent {
+  id        String         @id @default(cuid())
+  deviceId  String
+  eventType DeviceEventType
+  createdAt DateTime       @default(now())
+  metadata  Json?
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([deviceId, createdAt])
 }
 
 model Session {

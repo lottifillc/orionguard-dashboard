@@ -54,10 +54,11 @@ async function handleRegister(
   }
 
   deviceConnections.set(device.deviceIdentifier, ws);
-  console.log('Connected devices:', [...deviceConnections.keys()]);
+  console.log('REGISTER device:', device.deviceIdentifier, '(Prisma id:', device.id, ')');
+  const now = new Date();
   await prisma.device.update({
     where: { id: device.id },
-    data: { isOnline: true, lastSeenAt: new Date() },
+    data: { isOnline: true, lastSeenAt: now, lastHeartbeatAt: now },
   });
 
   ws.send(JSON.stringify({ type: 'REGISTERED', deviceId: device.id }));
@@ -67,9 +68,7 @@ async function handleRegister(
 async function handleScreenshotResult(msg: ScreenshotResultMessage): Promise<void> {
   const { deviceId, imageBase64 } = msg;
 
-  console.log('=== SCREENSHOT_RESULT RECEIVED ===');
-  console.log('DeviceId:', deviceId);
-  console.log('Image length:', msg.imageBase64?.length ?? 0);
+  console.log('SCREENSHOT_RESULT RECEIVED:', deviceId);
 
   if (!deviceId || !imageBase64 || typeof imageBase64 !== 'string') {
     console.log('[WS] SCREENSHOT_RESULT SKIP: missing deviceId or imageBase64');
@@ -91,15 +90,14 @@ async function handleScreenshotResult(msg: ScreenshotResultMessage): Promise<voi
 
   ensureLiveScreenshotsDir();
   const timestamp = Date.now();
-  const fileName = `${deviceId.replace(/[^a-zA-Z0-9-_]/g, '_')}-${timestamp}.png`;
-  const filePath = path.join(LIVE_SCREENSHOTS_DIR, fileName);
-  const webPath = `/live-screenshots/${fileName}`;
+  const fileName = `${device.deviceIdentifier.replace(/[^a-zA-Z0-9-_]/g, '_')}-${timestamp}.png`;
+  const absolutePath = path.join(LIVE_SCREENSHOTS_DIR, fileName);
 
-  console.log('File path:', filePath);
+  console.log('Saving screenshot to:', absolutePath);
 
   try {
     const buffer = Buffer.from(imageBase64, 'base64');
-    fs.writeFileSync(filePath, buffer);
+    fs.writeFileSync(absolutePath, buffer);
     console.log('[WS] Screenshot file saved:', fileName);
   } catch (err) {
     console.error('[WS] Failed to save screenshot:', err);
@@ -125,15 +123,31 @@ async function handleScreenshotResult(msg: ScreenshotResultMessage): Promise<voi
     console.log('[WS] Created system session for screenshot:', session.id);
   }
 
+  const dbFilePath = fileName;
   const saved = await prisma.screenshot.create({
     data: {
       sessionId: session.id,
-      filePath: webPath,
+      deviceId: device.id,
+      filePath: dbFilePath,
     },
   });
 
-  console.log('Screenshot saved ID:', saved.id);
-  console.log('=== SCREENSHOT_RESULT DONE ===');
+  console.log('SCREENSHOT_RESULT FileName:', fileName, 'deviceId:', device.id, 'saved:', saved.id);
+}
+
+async function handleHeartbeat(deviceId: string): Promise<void> {
+  const device = await prisma.device.findFirst({
+    where: {
+      OR: [{ deviceIdentifier: deviceId }, { id: deviceId }],
+    },
+    select: { id: true },
+  });
+  if (!device) return;
+  const now = new Date();
+  await prisma.device.update({
+    where: { id: device.id },
+    data: { lastHeartbeatAt: now, isOnline: true },
+  });
 }
 
 function handleMessage(ws: WebSocket, data: Buffer, deviceIdentifier: string | null): void {
@@ -154,6 +168,20 @@ function handleMessage(ws: WebSocket, data: Buffer, deviceIdentifier: string | n
         (ws as WebSocket & { _deviceIdentifier?: string })._deviceIdentifier = result.deviceIdentifier;
       }
     });
+    return;
+  }
+
+  if (type === 'HEARTBEAT') {
+    const heartbeatMsg = parsed as { type: string; deviceId?: string };
+    const deviceId = heartbeatMsg?.deviceId;
+    if (!deviceId || typeof deviceId !== 'string') {
+      ws.send(JSON.stringify({ type: 'ERROR', error: 'deviceId required for HEARTBEAT' }));
+      return;
+    }
+    handleHeartbeat(deviceId).catch((err) => {
+      console.error('[WS] Heartbeat error:', err);
+    });
+    console.log('HEARTBEAT RECEIVED FROM:', deviceId);
     return;
   }
 
@@ -184,7 +212,38 @@ async function markDeviceOffline(deviceIdentifier: string): Promise<void> {
   }
 }
 
+const OFFLINE_THRESHOLD_MS = 30 * 1000; // 30 seconds
+const OFFLINE_CHECK_INTERVAL_MS = 15 * 1000; // 15 seconds
+
+function startOfflineDetector(): void {
+  setInterval(async () => {
+    try {
+      const cutoff = new Date(Date.now() - OFFLINE_THRESHOLD_MS);
+      const staleDevices = await prisma.device.findMany({
+        where: {
+          isOnline: true,
+          OR: [
+            { lastHeartbeatAt: { lt: cutoff } },
+            { lastHeartbeatAt: null },
+          ],
+        },
+        select: { id: true, deviceIdentifier: true },
+      });
+      for (const d of staleDevices) {
+        await prisma.device.update({
+          where: { id: d.id },
+          data: { isOnline: false },
+        });
+        console.log('DEVICE OFFLINE:', d.deviceIdentifier);
+      }
+    } catch (err) {
+      console.error('[WS] Offline detector error:', err);
+    }
+  }, OFFLINE_CHECK_INTERVAL_MS);
+}
+
 function startServer(): void {
+  ensureLiveScreenshotsDir();
   httpServer = createServer();
   wss = new WebSocketServer({ server: httpServer });
 
@@ -199,6 +258,7 @@ function startServer(): void {
       const devId = (ws as WebSocket & { _deviceIdentifier?: string })._deviceIdentifier;
       if (devId) {
         deviceConnections.delete(devId);
+        console.log('CONNECTED DEVICES:', Array.from(deviceConnections.keys()));
         console.log('Device disconnected:', devId);
         markDeviceOffline(devId).catch((err) => {
           console.error('[WS] Failed to mark device offline:', err);
@@ -208,16 +268,29 @@ function startServer(): void {
 
     ws.on('error', (err) => {
       console.error('[WS] Connection error:', err);
+      console.log('CONNECTED DEVICES:', Array.from(deviceConnections.keys()));
     });
   });
 
   httpServer.listen(WS_PORT, () => {
     console.log(`[WS] WebSocket server listening on ws://localhost:${WS_PORT}`);
     console.log('WS SERVER RUNNING ON PORT 4001');
+    startOfflineDetector();
   });
 }
 
+const IS_SERVERLESS =
+  typeof process.env.VERCEL !== 'undefined' ||
+  typeof process.env.AWS_LAMBDA_FUNCTION_NAME !== 'undefined' ||
+  process.env.NEXT_RUNTIME === 'edge';
+
 export function startWebSocketServer(): void {
+  if (IS_SERVERLESS) {
+    console.warn(
+      '[WS] ⚠️ WebSocket is not supported in serverless mode. Set VERCEL=0 or deploy to a Node.js server (Railway, VPS, etc.) for WebSocket support.'
+    );
+    return;
+  }
   if (!(globalThis as unknown as { _wsServerStarted?: boolean })._wsServerStarted) {
     (globalThis as unknown as { _wsServerStarted?: boolean })._wsServerStarted = true;
     startServer();

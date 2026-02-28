@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { existsSync } from 'fs'
+import { join } from 'path'
 
 export const runtime = 'nodejs'
+
+function toFileUrl(filePath: string): string {
+  const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
+  const base = fileName.includes('\\') ? fileName.split('\\').pop() ?? fileName : fileName
+  return `/live-screenshots/${base}`
+}
+
+function resolvePublicPath(filePath: string): string {
+  const fileName = filePath.includes('/') ? filePath.split('/').pop() ?? filePath : filePath
+  const base = fileName.includes('\\') ? fileName.split('\\').pop() ?? fileName : fileName
+  return join(process.cwd(), 'public', 'live-screenshots', base)
+}
 
 export async function GET(request: Request) {
   try {
@@ -23,6 +37,7 @@ export async function GET(request: Request) {
             lastSeenAt: true,
             createdAt: true,
             isDisabled: true,
+            lastEmergencyUnlockAt: true,
             company: { select: { name: true } },
             _count: { select: { sessions: true } },
             sessions: {
@@ -60,6 +75,7 @@ export async function GET(request: Request) {
           orderBy: { capturedAt: 'desc' },
           select: {
             filePath: true,
+            capturedAt: true,
             session: { select: { deviceId: true } },
           },
         }),
@@ -83,11 +99,18 @@ export async function GET(request: Request) {
       activitiesByDevice.set(s.deviceId, { count, lastAt })
     }
 
-    const screenshotByDevice = new Map<string, string>()
+    const screenshotByDevice = new Map<
+      string,
+      { fileUrl: string; capturedAt: Date }
+    >()
     for (const sc of lastScreenshots) {
       const did = sc.session.deviceId
       if (!screenshotByDevice.has(did)) {
-        screenshotByDevice.set(did, sc.filePath.startsWith('/') ? sc.filePath : `/${sc.filePath}`)
+        const fileUrl = toFileUrl(sc.filePath)
+        const fullPath = resolvePublicPath(sc.filePath)
+        if (existsSync(fullPath)) {
+          screenshotByDevice.set(did, { fileUrl, capturedAt: sc.capturedAt })
+        }
       }
     }
 
@@ -105,6 +128,7 @@ export async function GET(request: Request) {
         lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
         createdAt: d.createdAt.toISOString(),
         isDisabled: d.isDisabled,
+        lastEmergencyUnlockAt: d.lastEmergencyUnlockAt?.toISOString() ?? null,
         company: d.company,
         totalSessionsCount: d._count.sessions,
         totalActivitiesCount: totalActivities,
@@ -113,7 +137,14 @@ export async function GET(request: Request) {
           ? { fullName: emp.fullName, employeeCode: emp.employeeCode }
           : null,
         lastActivityTime: lastActivityTime?.toISOString() ?? null,
-        lastScreenshotFilePath: screenshotByDevice.get(d.id) ?? null,
+        lastScreenshotFilePath: screenshotByDevice.get(d.id)?.fileUrl ?? null,
+        latestScreenshot:
+          screenshotByDevice.get(d.id) != null
+            ? {
+                fileUrl: screenshotByDevice.get(d.id)!.fileUrl,
+                capturedAt: screenshotByDevice.get(d.id)!.capturedAt.toISOString(),
+              }
+            : null,
       }
     })
 

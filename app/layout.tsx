@@ -40,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl" className={ibmPlexArabic.variable}>
-      <body className={`${ibmPlexArabic.className} antialiased selection:bg-blue-500/30`}>
+    <html lang="ar" dir="rtl" className={`${ibmPlexArabic.variable} dark h-full`}>
+      <body className={`${ibmPlexArabic.className} antialiased selection:bg-blue-500/30 h-full`}>
         {children}
       </body>
     </html>

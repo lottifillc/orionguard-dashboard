@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendScreenshotCommand } from '@/lib/device-commands'
+import { deviceConnections } from '@/lib/ws-connection-store'
 
 export const runtime = 'nodejs'
 
@@ -8,6 +9,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const deviceId = searchParams.get('deviceId')
+
+    console.log('Looking for device:', deviceId)
+    console.log('Connected devices:', Array.from(deviceConnections.keys()))
 
     if (!deviceId) {
       return NextResponse.json(

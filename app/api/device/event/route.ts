@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendLockCommand } from '@/lib/device-commands'
 
 export const runtime = 'nodejs'
 
+/**
+ * POST: Device reports EMERGENCY_UNLOCK (e.g. user unlocked locally via PIN).
+ * Called by the desktop client when emergency local unlock is performed.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const deviceId = body?.deviceId
+    const deviceId = body?.deviceId ?? body?.deviceIdentifier
 
     if (!deviceId || typeof deviceId !== 'string') {
       return NextResponse.json(
@@ -29,20 +32,24 @@ export async function POST(request: Request) {
 
     await prisma.$transaction([
       prisma.deviceEvent.create({
-        data: { deviceId: device.id, eventType: 'REMOTE_LOCK' },
+        data: {
+          deviceId: device.id,
+          eventType: 'EMERGENCY_UNLOCK',
+        },
       }),
       prisma.device.update({
         where: { id: device.id },
-        data: { isDisabled: true, lastEmergencyUnlockAt: null },
+        data: {
+          isDisabled: false,
+          lastEmergencyUnlockAt: new Date(),
+        },
       }),
     ])
-
-    await sendLockCommand(deviceId)
 
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json(
-      { error: 'Failed to disable device' },
+      { error: 'Failed to record emergency unlock' },
       { status: 500 }
     )
   }

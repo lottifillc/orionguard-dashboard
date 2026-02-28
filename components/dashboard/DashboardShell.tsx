@@ -68,7 +68,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
-    if (href === '/dashboard/devices') return pathname.startsWith('/dashboard/devices') || pathname.startsWith('/devices/')
+    if (href === '/dashboard/devices') return pathname.startsWith('/dashboard/devices')
     return pathname.startsWith(href)
   }
 
@@ -155,7 +155,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full relative z-10 overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 relative z-10 overflow-x-hidden overflow-y-auto">
         {children}
       </main>
     </div>
