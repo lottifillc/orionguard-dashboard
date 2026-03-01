@@ -88,3 +88,59 @@ export async function sendRequestLiveFrame(deviceId: string): Promise<boolean> {
   socket.send(JSON.stringify({ type: 'REQUEST_LIVE_FRAME', deviceId }));
   return true;
 }
+
+/**
+ * Generic command sender: find WebSocket for deviceId and send JSON message.
+ * @param deviceId - Device id (cuid) or deviceIdentifier
+ * @param command - { type: string, payload?: object }
+ * @throws Error with "Device offline" if device is not connected
+ */
+export async function sendCommandToDevice(
+  deviceId: string,
+  command: { type: string; payload?: Record<string, unknown> }
+): Promise<void> {
+  const deviceIdentifier = await resolveDeviceIdentifier(deviceId);
+  if (!deviceIdentifier) {
+    throw new Error('Device not found');
+  }
+
+  const ws = deviceConnections.get(deviceIdentifier);
+  if (!ws || ws.readyState !== 1 /* OPEN */) {
+    throw new Error('Device offline');
+  }
+
+  const message =
+    command.payload != null
+      ? { type: command.type, payload: command.payload }
+      : { type: command.type };
+  ws.send(JSON.stringify(message));
+}
+
+/**
+ * Send BLOCK_INPUT command to block mouse and keyboard on the device.
+ */
+export async function sendBlockInputCommand(deviceId: string): Promise<void> {
+  await sendCommandToDevice(deviceId, { type: 'BLOCK_INPUT' });
+}
+
+/**
+ * Send UNBLOCK_INPUT command to unblock mouse and keyboard on the device.
+ */
+export async function sendUnblockInputCommand(deviceId: string): Promise<void> {
+  await sendCommandToDevice(deviceId, { type: 'UNBLOCK_INPUT' });
+}
+
+/**
+ * Send SET_EMERGENCY_PIN command with the hashed PIN to the device.
+ * @param deviceId - Device id (cuid) or deviceIdentifier
+ * @param pinHash - SHA256 hash of PIN, hex string lowercase
+ */
+export async function sendSetEmergencyPinCommand(
+  deviceId: string,
+  pinHash: string
+): Promise<void> {
+  await sendCommandToDevice(deviceId, {
+    type: 'SET_EMERGENCY_PIN',
+    payload: { pinHash },
+  });
+}

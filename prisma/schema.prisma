@@ -122,16 +122,30 @@ model Device {
   lastHeartbeatAt       DateTime?
   isDisabled            Boolean   @default(false)
   lastEmergencyUnlockAt DateTime?
+  inputBlocked          Boolean   @default(false)
 
-  company           Company            @relation(fields: [companyId], references: [id])
-  branch            Branch?            @relation(fields: [branchId], references: [id])
-  sessions          Session[]
-  deviceLoginEvents DeviceLoginEvent[]
-  deviceEvents      DeviceEvent[]
+  company              Company             @relation(fields: [companyId], references: [id])
+  branch               Branch?             @relation(fields: [branchId], references: [id])
+  sessions             Session[]
+  deviceLoginEvents    DeviceLoginEvent[]
+  deviceEvents         DeviceEvent[]
+  emergencyPinConfigs  EmergencyPinConfig[]
 
   @@index([companyId])
   @@index([branchId])
   @@index([lastHeartbeatAt])
+}
+
+model EmergencyPinConfig {
+  id           String   @id @default(cuid())
+  deviceId     String   @unique
+  pinHash      String
+  configuredAt DateTime @default(now())
+  configuredBy String? // User/employee ID for audit (when auth is implemented)
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
 }
 
 model DeviceEvent {

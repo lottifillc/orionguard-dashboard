@@ -26,7 +26,12 @@ export async function GET(request: Request) {
             createdAt: true,
             isDisabled: true,
             lastEmergencyUnlockAt: true,
+            inputBlocked: true,
             company: { select: { name: true } },
+            emergencyPinConfigs: {
+              take: 1,
+              select: { id: true },
+            },
             _count: { select: { sessions: true } },
             sessions: {
               orderBy: { loginTime: 'desc' },
@@ -117,6 +122,8 @@ export async function GET(request: Request) {
         createdAt: d.createdAt.toISOString(),
         isDisabled: d.isDisabled,
         lastEmergencyUnlockAt: d.lastEmergencyUnlockAt?.toISOString() ?? null,
+        inputBlocked: d.inputBlocked,
+        emergencyPinConfigured: (d.emergencyPinConfigs?.length ?? 0) > 0,
         company: d.company,
         totalSessionsCount: d._count.sessions,
         totalActivitiesCount: totalActivities,

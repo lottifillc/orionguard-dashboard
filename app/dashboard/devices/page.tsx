@@ -17,6 +17,8 @@ import {
   Activity,
   AlertTriangle,
   History,
+  MousePointer2,
+  KeyRound,
 } from 'lucide-react'
 import { Toast, type ToastType } from '@/components/ui/Toast'
 
@@ -29,6 +31,8 @@ type Device = {
   createdAt: string
   isDisabled: boolean
   lastEmergencyUnlockAt: string | null
+  inputBlocked: boolean
+  emergencyPinConfigured: boolean
   company: { name: string }
   totalSessionsCount: number
   totalActivitiesCount: number
@@ -160,7 +164,7 @@ function ActionsDropdown({
 }: {
   device: Device
   isLive: boolean
-  onAction: (action: 'screenshot' | 'lock' | 'unlock' | 'viewScreenshot' | 'viewEvents') => void
+  onAction: (action: 'screenshot' | 'lock' | 'unlock' | 'viewScreenshot' | 'viewEvents' | 'blockInput' | 'unblockInput' | 'configureEmergencyPin') => void
   loadingKey: string | null
 }) {
   const [open, setOpen] = useState(false)
@@ -249,6 +253,53 @@ function ActionsDropdown({
           >
             <History size={16} className={iconClass} />
             أحداث الجهاز
+          </button>
+          <div className="my-2 border-t border-white/10" />
+          {device.inputBlocked ? (
+            <button
+              type="button"
+              onClick={() => {
+                onAction('unblockInput')
+                setOpen(false)
+              }}
+              disabled={!isLive || !!isLoading('unblockInput')}
+              className={itemClass}
+            >
+              {isLoading('unblockInput') ? (
+                <Loader2 size={16} className={`${iconClass} animate-spin`} />
+              ) : (
+                <MousePointer2 size={16} className={iconClass} />
+              )}
+              تفعيل الإدخال
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                onAction('blockInput')
+                setOpen(false)
+              }}
+              disabled={!isLive || !!isLoading('blockInput')}
+              className={`${itemClass} text-amber-400 hover:bg-amber-500/10`}
+            >
+              {isLoading('blockInput') ? (
+                <Loader2 size={16} className={`${iconClass} animate-spin`} />
+              ) : (
+                <MousePointer2 size={16} className={iconClass} />
+              )}
+              تعطيل الإدخال
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              onAction('configureEmergencyPin')
+              setOpen(false)
+            }}
+            className={itemClass}
+          >
+            <KeyRound size={16} className={iconClass} />
+            رمز الطوارئ
           </button>
           <div className="my-2 border-t border-white/10" />
           {device.isDisabled ? (
@@ -463,6 +514,146 @@ function DeviceEventsModal({
   )
 }
 
+function EmergencyPinModal({
+  deviceId,
+  deviceName,
+  onClose,
+  onSuccess,
+}: {
+  deviceId: string
+  deviceName: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [pin, setPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!pin || !confirmPin) {
+      setError('يرجى إدخال الرمز وتأكيده')
+      return
+    }
+    if (pin !== confirmPin) {
+      setError('الرمز وتأكيد الرمز غير متطابقين')
+      return
+    }
+    if (pin.length < 4 || pin.length > 8) {
+      setError('الرمز يجب أن يكون من 4 إلى 8 أرقام')
+      return
+    }
+    if (!/^\d+$/.test(pin)) {
+      setError('الرمز يجب أن يحتوي على أرقام فقط')
+      return
+    }
+    setLoading(true)
+    try {
+      const r = await fetch(`/api/device/emergency-pin/${deviceId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin, confirmPin }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data?.error ?? 'Failed')
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'حدث خطأ')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="رمز الطوارئ"
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl overflow-hidden bg-[#0B101E] border border-white/10 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <KeyRound size={20} className="text-slate-400" />
+            <h3 className="text-lg font-semibold text-white">رمز الطوارئ</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+            aria-label="إغلاق"
+          >
+            <ChevronDown size={20} className="rotate-180" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-slate-400 text-sm">{deviceName}</p>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              الرمز (4–8 أرقام)
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="••••"
+              className="w-full bg-[#080B14] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+              maxLength={8}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              تأكيد الرمز
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value)}
+              placeholder="••••"
+              className="w-full bg-[#080B14] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+              maxLength={8}
+            />
+          </div>
+          {error && (
+            <p className="text-rose-400 text-sm">{error}</p>
+          )}
+          <div className="flex gap-3 justify-end pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg text-slate-300 hover:bg-white/5 transition disabled:opacity-50"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 rounded-lg font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-50 flex items-center gap-2 transition"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+              حفظ
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function ScreenshotModal({
   url,
   onClose,
@@ -524,6 +715,7 @@ export default function DevicesPage() {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
   const [screenshotModal, setScreenshotModal] = useState<{ deviceId: string; url: string | null } | null>(null)
   const [eventsModal, setEventsModal] = useState<{ deviceId: string; deviceName: string } | null>(null)
+  const [emergencyPinModal, setEmergencyPinModal] = useState<{ deviceId: string; deviceName: string } | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<{ deviceId: string; action: 'lock' | 'unlock' } | null>(null)
   const companyRef = useRef<HTMLDivElement>(null)
   const [companyOpen, setCompanyOpen] = useState(false)
@@ -666,7 +858,7 @@ export default function DevicesPage() {
 
   const handleAction = async (
     deviceId: string,
-    action: 'screenshot' | 'lock' | 'unlock' | 'viewScreenshot' | 'viewEvents'
+    action: 'screenshot' | 'lock' | 'unlock' | 'viewScreenshot' | 'viewEvents' | 'blockInput' | 'unblockInput' | 'configureEmergencyPin'
   ) => {
     if (action === 'lock') {
       setPendingConfirm({ deviceId, action: 'lock' })
@@ -679,6 +871,37 @@ export default function DevicesPage() {
     if (action === 'viewEvents') {
       const device = devices.find((d) => d.id === deviceId)
       setEventsModal(device ? { deviceId, deviceName: device.deviceName } : { deviceId, deviceName: '' })
+      return
+    }
+    if (action === 'configureEmergencyPin') {
+      const device = devices.find((d) => d.id === deviceId)
+      setEmergencyPinModal(device ? { deviceId, deviceName: device.deviceName } : { deviceId, deviceName: '' })
+      return
+    }
+    if (action === 'blockInput' || action === 'unblockInput') {
+      setLoadingAction(`${deviceId}:${action}`)
+      try {
+        const endpoint = action === 'blockInput' ? '/api/device/block-input' : '/api/device/unblock-input'
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId }),
+        })
+        const data = await r.json()
+        if (!r.ok) throw new Error(data?.error ?? 'Failed')
+        setToast({
+          message: action === 'blockInput' ? 'تم تعطيل الإدخال' : 'تم تفعيل الإدخال',
+          type: 'success',
+        })
+        fetchDevices(false)
+      } catch (err) {
+        setToast({
+          message: err instanceof Error ? err.message : 'حدث خطأ',
+          type: 'error',
+        })
+      } finally {
+        setLoadingAction(null)
+      }
       return
     }
     setLoadingAction(`${deviceId}:${action}`)
@@ -850,7 +1073,10 @@ export default function DevicesPage() {
                             className="border-b border-white/5 hover:bg-white/2 transition text-right"
                           >
                             <td className="px-4 md:px-6 py-4 text-right">
-                              <div className="flex flex-col items-start">
+                              <Link
+                                href={`/dashboard/devices/${device.id}`}
+                                className="flex flex-col items-start hover:opacity-80 transition"
+                              >
                                 <span className="font-medium text-white">
                                   {device.deviceName}
                                 </span>
@@ -860,7 +1086,7 @@ export default function DevicesPage() {
                                 >
                                   {device.deviceIdentifier}
                                 </span>
-                              </div>
+                              </Link>
                             </td>
                             <td className="px-4 md:px-6 py-4 overflow-visible text-right">
                               <div className="flex justify-start w-full">
@@ -895,6 +1121,12 @@ export default function DevicesPage() {
                                   </span>
                                 )}
                                 </div>
+                                {device.inputBlocked && (
+                                  <span className="inline-flex flex-row-reverse items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                    <MousePointer2 size={12} className="shrink-0" />
+                                    الإدخال معطل
+                                  </span>
+                                )}
                                 {!device.isDisabled && device.lastEmergencyUnlockAt && (
                                   <span className="inline-flex flex-row-reverse items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
                                     <AlertTriangle size={12} className="shrink-0" />
@@ -948,6 +1180,18 @@ export default function DevicesPage() {
           deviceId={eventsModal.deviceId}
           deviceName={eventsModal.deviceName}
           onClose={() => setEventsModal(null)}
+        />
+      )}
+
+      {emergencyPinModal && (
+        <EmergencyPinModal
+          deviceId={emergencyPinModal.deviceId}
+          deviceName={emergencyPinModal.deviceName}
+          onClose={() => setEmergencyPinModal(null)}
+          onSuccess={() => {
+            setToast({ message: 'تم حفظ رمز الطوارئ', type: 'success' })
+            fetchDevices(false)
+          }}
         />
       )}
 
