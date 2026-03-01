@@ -188,17 +188,15 @@ function ActionsDropdown({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`p-2 rounded-lg hover:bg-white/5 transition text-slate-400 hover:text-white ${open ? 'opacity-0 pointer-events-none' : ''}`}
+        className="p-2 rounded-lg hover:bg-white/5 transition text-slate-400 hover:text-white"
         aria-label="الإجراءات"
-        aria-expanded={open}
-        aria-haspopup="menu"
       >
         <MoreVertical size={18} />
       </button>
       {open && (
         <div
           dir="rtl"
-          className="absolute top-full mt-2 end-0 z-[9999] min-w-[220px] max-w-[90vw] bg-[#0f1b2d] border border-white/10 backdrop-blur-xl rounded-xl shadow-2xl py-2"
+          className="absolute top-full mt-2 end-0 z-[9999] min-w-[220px] max-w-[90vw] bg-[#0f1b2d] border border-white/10 rounded-xl shadow-2xl py-2"
           role="menu"
         >
           <button
