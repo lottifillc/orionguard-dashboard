@@ -27,8 +27,11 @@ async function handleRegister(
   msg: RegisterMessage
 ): Promise<{ deviceIdentifier: string; deviceId: string } | null> {
   const { deviceId, companyId } = msg;
+  console.log('[WS] REGISTER received:', { deviceId, companyId });
+
   if (!deviceId || typeof deviceId !== 'string' || !companyId || typeof companyId !== 'string') {
     ws.send(JSON.stringify({ type: 'ERROR', error: 'deviceId and companyId required' }));
+    console.log('[WS] REGISTER rejected: missing deviceId or companyId');
     return null;
   }
 
@@ -41,17 +44,38 @@ async function handleRegister(
   });
 
   if (!device) {
-    device = await prisma.device.create({
-      data: {
-        deviceIdentifier: deviceId,
-        deviceName: deviceId,
-        companyId,
-        isOnline: true,
-        lastSeenAt: new Date(),
-      },
-      select: { id: true, deviceIdentifier: true },
-    });
-    console.log('[WS] AUTO-CREATED DEVICE:', deviceId);
+    try {
+      device = await prisma.device.create({
+        data: {
+          deviceIdentifier: deviceId,
+          deviceName: deviceId,
+          companyId,
+          isOnline: true,
+          lastSeenAt: new Date(),
+        },
+        select: { id: true, deviceIdentifier: true },
+      });
+      console.log('[WS] AUTO-CREATED DEVICE:', deviceId);
+    } catch (err: unknown) {
+      // Race: sync API may have created device concurrently (P2002 = unique constraint).
+      const code = (err as { code?: string })?.code;
+      if (code === 'P2002') {
+        device = await prisma.device.findUnique({
+          where: { deviceIdentifier: deviceId },
+          select: { id: true, deviceIdentifier: true },
+        });
+        if (device) {
+          console.log('[WS] REGISTER: device found after race (created by sync):', deviceId);
+        }
+      }
+      if (!device) {
+        console.error('[WS] REGISTER failed:', err);
+        ws.send(JSON.stringify({ type: 'ERROR', error: 'Device registration failed' }));
+        return null;
+      }
+    }
+  } else {
+    console.log('[WS] REGISTER: device found:', deviceId);
   }
 
   deviceConnections.set(device.deviceIdentifier, ws);
@@ -62,6 +86,7 @@ async function handleRegister(
   });
 
   ws.send(JSON.stringify({ type: 'REGISTERED', deviceId: device.id }));
+  console.log('[WS] REGISTERED sent:', device.deviceIdentifier);
   return { deviceIdentifier: device.deviceIdentifier, deviceId: device.id };
 }
 

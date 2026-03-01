@@ -52,6 +52,9 @@ export async function POST(request: Request) {
       payload.companyId && typeof payload.companyId === 'string'
         ? payload.companyId
         : '18d7f26a-240b-4f35-a978-22e109419c50'
+
+    console.log('[Sync] Request:', { deviceId, companyId })
+
     const loginEvents = Array.isArray(payload.loginEvents) ? payload.loginEvents : []
     const sessions = Array.isArray(payload.sessions) ? payload.sessions : []
     const activities = Array.isArray(payload.activities) ? payload.activities : []
@@ -76,12 +79,13 @@ export async function POST(request: Request) {
         },
         select: { id: true, companyId: true },
       })
-      console.log('AUTO-CREATED DEVICE:', deviceId)
+      console.log('[Sync] AUTO-CREATED DEVICE:', deviceId)
     } else {
       await prisma.device.update({
         where: { id: device.id },
         data: { isOnline: true, lastSeenAt: new Date() },
       })
+      console.log('[Sync] Device updated:', deviceId)
     }
 
     const resolvedDeviceId = device.id
