@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { prisma } from './prisma';
+import { ensureCompanyExists } from './ensure-company';
 import { deviceConnections, dashboardConnections } from './ws-connection-store';
 import { sendRequestLiveFrame } from './device-commands';
 import * as fs from 'fs';
@@ -44,6 +45,19 @@ async function handleRegister(
   });
 
   if (!device) {
+    const companyOk = await ensureCompanyExists(companyId);
+    if (!companyOk) {
+      const companyExists = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true },
+      });
+      if (!companyExists) {
+        ws.send(JSON.stringify({ type: 'ERROR', error: 'Company not found' }));
+        console.log('[WS] REGISTER rejected: company not found:', companyId);
+        return null;
+      }
+    }
+
     try {
       device = await prisma.device.create({
         data: {
@@ -60,11 +74,12 @@ async function handleRegister(
       // Race: sync API may have created device concurrently (P2002 = unique constraint).
       const code = (err as { code?: string })?.code;
       if (code === 'P2002') {
-        device = await prisma.device.findUnique({
+        const found = await prisma.device.findUnique({
           where: { deviceIdentifier: deviceId },
-          select: { id: true, deviceIdentifier: true },
+          select: { id: true, deviceIdentifier: true, companyId: true },
         });
-        if (device) {
+        if (found && found.companyId === companyId) {
+          device = found;
           console.log('[WS] REGISTER: device found after race (created by sync):', deviceId);
         }
       }

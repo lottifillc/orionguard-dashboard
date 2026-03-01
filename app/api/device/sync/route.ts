@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ensureCompanyExists } from '@/lib/ensure-company'
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,17 @@ export async function POST(request: Request) {
     })
 
     if (!device) {
+      await ensureCompanyExists(companyId)
+      const companyExists = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true },
+      })
+      if (!companyExists) {
+        return NextResponse.json(
+          { error: 'Company not found', companyId },
+          { status: 400 }
+        )
+      }
       device = await prisma.device.create({
         data: {
           deviceIdentifier: deviceId,

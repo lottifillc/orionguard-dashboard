@@ -1,20 +1,44 @@
 import { prisma } from './prisma';
 
+/** Default company ID used by desktop app in AUTO DEVICE MODE */
+export const DEFAULT_COMPANY_ID = '18d7f26a-240b-4f35-a978-22e109419c50';
+
+export async function ensureDefaultCompanyExists(): Promise<void> {
+  const existing = await prisma.company.findUnique({
+    where: { id: DEFAULT_COMPANY_ID },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  await prisma.company.create({
+    data: {
+      id: DEFAULT_COMPANY_ID,
+      name: 'Default Company (AUTO DEVICE MODE)',
+    },
+  });
+  console.log('[Bootstrap] Default company created:', DEFAULT_COMPANY_ID);
+}
+
 export async function bootstrapIfEmpty(): Promise<void> {
   try {
-    const companyCount = await prisma.company.count();
+    const hadData = (await prisma.company.count()) > 0;
+    await ensureDefaultCompanyExists();
 
-    if (companyCount > 0) {
+    if (hadData) {
       console.log('Bootstrap skipped - data exists');
       await ensureTestDeviceExists();
       await reportDeviceStatus();
       return;
     }
 
-    const company = await prisma.company.create({
-      data: {
-        name: 'مطاعم ومطابخ القصرين',
-      },
+    const company = await prisma.company.findUniqueOrThrow({
+      where: { id: DEFAULT_COMPANY_ID },
+      select: { id: true },
+    });
+
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { name: 'مطاعم ومطابخ القصرين' },
     });
 
     const branch = await prisma.branch.create({
