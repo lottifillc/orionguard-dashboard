@@ -361,9 +361,19 @@ export function attachWebSocketHandlers(wss: WebSocketServer): void {
   startOfflineDetectorOnce();
 
   wss.on('connection', (ws: WebSocket) => {
-    console.log('PRODUCTION WS CONNECTED');
+    console.log('[TRACE] WS connection opened');
 
     ws.on('message', (data: Buffer) => {
+      const raw = data.toString().slice(0, 120);
+      const type = (() => {
+        try {
+          const p = JSON.parse(data.toString()) as { type?: string };
+          return p?.type ?? '?';
+        } catch {
+          return 'invalid-json';
+        }
+      })();
+      console.log('[TRACE] WS message received:', { type, raw: raw.length > 80 ? raw + '...' : raw });
       const devId = (ws as WebSocket & { _deviceIdentifier?: string })._deviceIdentifier;
       handleMessage(ws, data, devId ?? null);
     });

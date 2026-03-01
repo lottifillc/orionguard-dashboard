@@ -24,6 +24,9 @@ async function start() {
 
   const server = http.createServer(async (req, res) => {
     const pathname = (req.url || '/').split('?')[0];
+    if (pathname === '/api/device/sync' && req.method === 'POST') {
+      console.log('[TRACE] Sync API request received');
+    }
     if (pathname.startsWith('/live-screenshots/')) {
       const relativePath = pathname.replace('/live-screenshots/', '');
       const filePath = path.join(LIVE_SCREENSHOTS_DIR, relativePath);
@@ -53,6 +56,7 @@ async function start() {
 
   server.on('upgrade', (req, socket, head) => {
     const pathname = req.url?.split('?')[0];
+    console.log(`[TRACE] WS upgrade request: path=${pathname}`);
     if (pathname === '/ws') {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
@@ -68,6 +72,7 @@ async function start() {
   server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
     console.log(`> WebSocket: ws://localhost:${port}/ws`);
+    console.log('[TRACE] Server ready - Sync: POST /api/device/sync, WS: /ws');
   });
 }
 

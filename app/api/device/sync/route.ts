@@ -35,16 +35,19 @@ function parseActivityCategory(value: unknown): string | null {
 }
 
 export async function POST(request: Request) {
+  console.log('[TRACE] Sync POST entered');
   try {
     const body = await request.json()
 
     if (!body || typeof body !== 'object') {
+      console.log('[TRACE] Sync rejected: invalid payload');
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
     const payload = body as Partial<SyncPayload>
 
     if (!payload.deviceId || typeof payload.deviceId !== 'string') {
+      console.log('[TRACE] Sync rejected: deviceId required');
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
@@ -277,7 +280,8 @@ export async function POST(request: Request) {
       success: true,
       inserted,
     })
-  } catch {
+  } catch (err) {
+    console.error('[TRACE] Sync error:', err);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
