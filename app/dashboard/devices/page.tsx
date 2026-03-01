@@ -184,7 +184,7 @@ function ActionsDropdown({
   const iconClass = 'shrink-0 opacity-70'
 
   return (
-    <div ref={containerRef} className="relative z-50">
+    <div ref={containerRef} className={`relative ${open ? 'z-[100]' : 'z-50'}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -196,7 +196,7 @@ function ActionsDropdown({
       {open && (
         <div
           dir="rtl"
-          className="absolute top-full mt-2 end-0 z-[9999] min-w-[220px] max-w-[90vw] bg-[#0f1b2d] border border-white/10 rounded-xl shadow-2xl py-2"
+          className="absolute top-full mt-2 end-0 z-[9999] min-w-[220px] max-w-[90vw] bg-[#0f1b2d] bg-opacity-100 opacity-100 isolate border border-white/10 rounded-xl shadow-2xl py-2"
           role="menu"
         >
           <button
