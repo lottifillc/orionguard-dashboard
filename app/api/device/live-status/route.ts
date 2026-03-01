@@ -5,8 +5,9 @@ import { deviceConnections } from '@/lib/ws-connection-store'
 export const runtime = 'nodejs'
 
 /**
- * Returns device IDs (cuid) that have an active WebSocket connection.
+ * Returns device IDs (cuid) that have an active WebSocket connection AND isOnline=true in DB.
  * UI polls every 5 seconds for real-time Live/Offline status.
+ * Excludes devices marked offline by heartbeat timeout (e.g. after client closed abruptly).
  */
 export async function GET(request: Request) {
   try {
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
     const devices = await prisma.device.findMany({
       where: {
         deviceIdentifier: { in: connectedIdentifiers },
+        isOnline: true,
         ...(companyId ? { companyId } : {}),
       },
       select: { id: true },
