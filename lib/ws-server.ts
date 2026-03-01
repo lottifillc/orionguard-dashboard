@@ -32,7 +32,7 @@ async function handleRegister(
     return null;
   }
 
-  const device = await prisma.device.findFirst({
+  let device = await prisma.device.findFirst({
     where: {
       OR: [{ deviceIdentifier: deviceId }, { id: deviceId }],
       companyId,
@@ -41,8 +41,17 @@ async function handleRegister(
   });
 
   if (!device) {
-    ws.send(JSON.stringify({ type: 'ERROR', error: 'Device not found or does not belong to company' }));
-    return null;
+    device = await prisma.device.create({
+      data: {
+        deviceIdentifier: deviceId,
+        deviceName: deviceId,
+        companyId,
+        isOnline: true,
+        lastSeenAt: new Date(),
+      },
+      select: { id: true, deviceIdentifier: true },
+    });
+    console.log('[WS] AUTO-CREATED DEVICE:', deviceId);
   }
 
   deviceConnections.set(device.deviceIdentifier, ws);
@@ -176,6 +185,16 @@ function handleMessage(ws: WebSocket, data: Buffer, deviceIdentifier: string | n
     handleHeartbeat(deviceId).catch((err) => {
       console.error('[WS] Heartbeat error:', err);
     });
+    return;
+  }
+
+  if (type === 'PING') {
+    const devId = (ws as WebSocket & { _deviceIdentifier?: string })._deviceIdentifier;
+    if (devId) {
+      handleHeartbeat(devId).catch((err) => {
+        console.error('[WS] PING/Heartbeat error:', err);
+      });
+    }
     return;
   }
 
